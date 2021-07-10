@@ -43,6 +43,9 @@ public:
         uint8_t axis_to_mirror = -1;
         float mirror_ratio = 1.0f;
         uint8_t load_encoder_axis = -1;  // default depends on Axis number and is set in load_configuration()
+	
+		bool enable_pos_err_sync = false;
+		float pos_err_sync_gain = 0;
 
         // custom setters
         Controller* parent;
@@ -102,8 +105,7 @@ public:
     bool anticogging_valid_ = false;
 
     // custom setters
-    void set_input_pos(float value) { input_pos_ = value; input_pos_updated(); }
-
+    void set_input_pos(float value);
 };
 
 #endif // __CONTROLLER_HPP

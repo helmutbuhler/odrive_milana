@@ -385,9 +385,18 @@ void Encoder::abs_spi_cb(){
     switch (mode_) {
         case MODE_SPI_ABS_AMS: {
             uint16_t rawVal = abs_spi_dma_rx_[0];
-            // check if parity is correct (even) and error flag clear
-            if (ams_parity(rawVal) || ((rawVal >> 14) & 1)) {
+            // check if parity is correct (even)
+            if (ams_parity(rawVal)) {
                 return;
+            }
+            // check if error flag is clear
+            if ((rawVal >> 14) & 1) {
+				spi_abs_ams_error_flag_ = true;
+	            if (!config_.ignore_abs_ams_error_flag)
+		            //goto done;
+                         return;
+            } else {
+				spi_abs_ams_error_flag_ = false;
             }
             pos = rawVal & 0x3fff;
         } break;
@@ -483,7 +492,8 @@ bool Encoder::update() {
             if (abs_spi_pos_updated_ == false) {
                 // Low pass filter the error
                 spi_error_rate_ += current_meas_period * (1.0f - spi_error_rate_);
-                if (spi_error_rate_ > 0.005f)
+                //if (spi_error_rate_ > 0.005f)
+                if (spi_error_rate_ > 0.1f)
                     set_error(ERROR_ABS_SPI_COM_FAIL);
             } else {
                 // Low pass filter the error

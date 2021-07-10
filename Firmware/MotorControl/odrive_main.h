@@ -161,10 +161,51 @@ constexpr size_t AXIS_COUNT = 2;
 extern std::array<Axis*, AXIS_COUNT> axes;
 extern ODriveCAN *odCAN;
 
+#if 1
+// this is from: https://stackoverflow.com/questions/1659440/32-bit-to-16-bit-floating-point-conversion
+typedef unsigned short ushort;
+typedef unsigned int uint;
+
+inline uint as_uint(const float x) {
+    union { float f; uint i; } val;
+    val.f = x;
+    return val.i;
+}
+inline float as_float(const uint x) {
+    union { float f; uint i; } val;
+    val.i = x;
+    return val.f;
+}
+
+inline float half_to_float(ushort x) { // IEEE-754 16-bit floating-point format (without infinity): 1-5-10, exp-15, +-131008.0, +-6.1035156E-5, +-5.9604645E-8, 3.311 digits
+    const uint e = (x&0x7C00)>>10; // exponent
+    const uint m = (x&0x03FF)<<13; // mantissa
+    const uint v = as_uint((float)m)>>23; // evil log2 bit hack to count leading zeros in denormalized format
+    return as_float((x&0x8000)<<16 | (e!=0)*((e+112)<<23|m) | ((e==0)&(m!=0))*((v-37)<<23|((m<<(150-v))&0x007FE000))); // sign : normalized : denormalized
+}
+inline ushort float_to_half(float x) { // IEEE-754 16-bit floating-point format (without infinity): 1-5-10, exp-15, +-131008.0, +-6.1035156E-5, +-5.9604645E-8, 3.311 digits
+    const uint b = as_uint(x)+0x00001000; // round-to-nearest-even: add last bit after truncated mantissa
+    const uint e = (b&0x7F800000)>>23; // exponent
+    const uint m = b&0x007FFFFF; // mantissa; in line below: 0x007FF000 = 0x00800000-0x00001000 = decimal indicator flag - initial rounding
+    return (b&0x80000000)>>16 | (e>112)*((((e-112)<<10)&0x7C00)|m>>13) | ((e<113)&(e>101))*((((0x007FF000+m)>>(125-e))+1)>>1) | (e>143)*0x7FFF; // sign : normalized : denormalized : saturate
+}
+
+using oscilloscope_type = ushort;
+#else
+using oscilloscope_type = float;
+inline float half_to_float(float x) {
+	return x;
+}
+inline float float_to_half(float x) {
+	return x;
+}
+#endif
 // if you use the oscilloscope feature you can bump up this value
-#define OSCILLOSCOPE_SIZE 4096
-extern float oscilloscope[OSCILLOSCOPE_SIZE];
-extern size_t oscilloscope_pos;
+//#define OSCILLOSCOPE_SIZE 4096
+#define OSCILLOSCOPE_SIZE 18000
+#define OSCILLOSCOPE_NUM_AXES 2
+extern oscilloscope_type oscilloscope[OSCILLOSCOPE_NUM_AXES][OSCILLOSCOPE_SIZE];
+extern size_t oscilloscope_pos[OSCILLOSCOPE_NUM_AXES];
 
 // TODO: move
 // this is technically not thread-safe but practically it might be
@@ -230,8 +271,9 @@ public:
     void enter_dfu_mode() override;
 
     float get_oscilloscope_val(uint32_t index) override {
-        return oscilloscope[index];
+        return half_to_float(oscilloscope[index%OSCILLOSCOPE_NUM_AXES][index/OSCILLOSCOPE_NUM_AXES]);
     }
+    const uint32_t oscilloscope_size_ = OSCILLOSCOPE_SIZE*OSCILLOSCOPE_NUM_AXES;
 
     float get_adc_voltage(uint32_t gpio) override {
         return ::get_adc_voltage(get_gpio_port_by_pin(gpio), get_gpio_pin_by_pin(gpio));
@@ -288,6 +330,11 @@ public:
     bool user_config_loaded_;
 
     uint32_t test_property_ = 0;
+
+    bool get_any_errors_and_watchdog_feed();
+
+    void set_trigger_jump(bool value);
+    bool trigger_jump_; // dummy
 };
 
 extern ODrive odrv; // defined in main.cpp

@@ -13,7 +13,8 @@ function find_python3()
     error("Python 3 not found.")
 end
 
-python_command = find_python3()
+-- python_command = find_python3()
+python_command = "/home/pi/archiconda3/envs/odrive/bin/python -B"
 print('Using python command "'..python_command..'"')
 
 tup.frule{inputs={'fibre/cpp/interfaces_template.j2'}, command=python_command..' interface_generator_stub.py --definitions odrive-interface.yaml --template %f --output %o', outputs='autogen/interfaces.hpp'}

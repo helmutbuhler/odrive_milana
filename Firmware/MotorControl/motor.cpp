@@ -330,6 +330,13 @@ bool Motor::FOC_voltage(float v_d, float v_q, float pwm_phase) {
     return enqueue_voltage_timings(v_alpha, v_beta);
 }
 
+void add_oscilloscope(int axis_num, float value) {
+    if (oscilloscope_pos[axis_num] <= OSCILLOSCOPE_SIZE) {
+		oscilloscope[axis_num][oscilloscope_pos[axis_num]-1] = float_to_half(value);
+        oscilloscope_pos[axis_num]++;
+    }
+}
+
 bool Motor::FOC_current(float Id_des, float Iq_des, float I_phase, float pwm_phase) {
     // Syntactic sugar
     CurrentControl_t& ictrl = current_control_;
@@ -408,31 +415,88 @@ bool Motor::FOC_current(float Id_des, float Iq_des, float I_phase, float pwm_pha
         return false; // error set inside enqueue_modulation_timings
     log_timing(TIMING_LOG_FOC_CURRENT);
 
-    if (axis_->axis_num_ == 0) {
+    {
 
         // Edit these to suit your capture needs
-        float trigger_data = ictrl.v_current_control_integral_d;
+        /*float trigger_data = ictrl.v_current_control_integral_d;
         float trigger_threshold = 0.5f;
         float sample_data = Ialpha;
 
         static bool ready = false;
-        static bool capturing = false;
         if (trigger_data < trigger_threshold) {
             ready = true;
         }
         if (ready && trigger_data >= trigger_threshold) {
             capturing = true;
             ready = false;
+        }*/
+        int axis_num = axis_->axis_num_;
+        if (axis_num == 0 && oscilloscope_force_trigger_) {
+            if (oscilloscope_pos[0] == 0) {
+                oscilloscope_pos[0] = 1;
+                oscilloscope_pos[1] = 1;
+                oscilloscope_counter_ = ((int64_t)1<<62) | (int64_t)axis_->loop_counter_;
+            }
+            oscilloscope_force_trigger_ = false;
         }
-        if (capturing) {
-            oscilloscope[oscilloscope_pos] = sample_data;
-            if (++oscilloscope_pos >= OSCILLOSCOPE_SIZE) {
-                oscilloscope_pos = 0;
-                capturing = false;
+        if (oscilloscope_pos[axis_num] && axis_num < OSCILLOSCOPE_NUM_AXES) {
+            //add_oscilloscope(axis_num, axis_->loop_counter_);
+            add_oscilloscope(axis_num, axis_->encoder_.pos_estimate_);
+            add_oscilloscope(axis_num, Iq_des);
+            //add_oscilloscope(axis_num, ictrl.Iq_measured);
+            add_oscilloscope(axis_num, axis_->controller_.pos_setpoint_);
+            if (oscilloscope_pos[axis_num] >= OSCILLOSCOPE_SIZE+1) {
+                oscilloscope_pos[axis_num] = 0;
+                if (axis_num == 0) {
+                    oscilloscope_counter_ = ((int64_t)1<<61) | (int64_t)(axis_->loop_counter_+1);
+                }
             }
         }
     }
 
+    if (current_threshold_mode_ != 0) {
+        if ((current_threshold_mode_ == 1 && Iq_des > current_threshold_) || 
+            (current_threshold_mode_ == 2 && Iq_des < current_threshold_)) {
+            for (Axis* ax : axes) {
+                ax->motor_.current_threshold_mode_ = -1;
+                ax->motor_.activated_landing_ = true;
+            }
+        }
+    }
+    if (current_threshold_mode_ == -1) {
+        current_threshold_mode_ = 0;
+
+        float abs_pos0 =  axes[0]->encoder_.pos_estimate_ + axes[0]->motor_.l_base_angle_;
+        float abs_pos1 = -axes[1]->encoder_.pos_estimate_ - axes[1]->motor_.l_base_angle_;
+        float abs_target = std::min((abs_pos0+abs_pos1)*0.5f + l_pos_zero_delta_, l_pos_zero_max_);
+        //axis_->controller_.config_.control_mode = Controller::CONTROL_MODE_TORQUE_CONTROL;
+        axis_->controller_.config_.input_mode = Controller::INPUT_MODE_PASSTHROUGH;
+        if (axis_->axis_num_ == 0)
+            axis_->controller_.input_pos_              = abs_target-l_base_angle_;
+        else
+            axis_->controller_.input_pos_              = -abs_target-l_base_angle_;
+        axis_->controller_.input_pos_updated_          = true;
+        axis_->controller_.config_.vel_gain            = l_vel_gain_;
+        axis_->controller_.config_.pos_gain            = l_pos_gain_;
+        axis_->controller_.config_.vel_integrator_gain = l_vel_integrator_gain_;
+        axis_->controller_.config_.vel_limit           = l_vel_limit_*5.0f;
+        axis_->trap_traj_ .config_.vel_limit           = l_vel_limit_;
+        axis_->controller_.config_.enable_pos_err_sync = true;
+    }
+
+    if (trigger_jump_) {
+        trigger_jump_ = false;
+        axis_->controller_.config_.input_mode = Controller::INPUT_MODE_PASSTHROUGH;
+        axis_->controller_.input_pos_                  = jump_pos_target_;
+        axis_->controller_.input_pos_updated_          = true;
+        axis_->controller_.config_.vel_gain            = j_vel_gain_;
+        axis_->controller_.config_.pos_gain            = j_pos_gain_;
+        axis_->controller_.config_.vel_integrator_gain = j_vel_integrator_gain_;
+        axis_->controller_.config_.vel_limit           = j_vel_limit_*5.0f;
+        axis_->trap_traj_ .config_.vel_limit           = j_vel_limit_;
+        config_.current_lim_margin                     = j_current_lim_margin_;
+        config_.current_lim                            = j_current_lim_;
+    }
     return true;
 }
 

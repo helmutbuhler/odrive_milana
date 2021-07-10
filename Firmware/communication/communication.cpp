@@ -52,8 +52,8 @@ void init_communication(void) {
         osDelay(1);
 }
 
-float oscilloscope[OSCILLOSCOPE_SIZE] = {0};
-size_t oscilloscope_pos = 0;
+oscilloscope_type oscilloscope[OSCILLOSCOPE_NUM_AXES][OSCILLOSCOPE_SIZE] = {0};
+size_t oscilloscope_pos[OSCILLOSCOPE_NUM_AXES] = {0}; // 0 if not capturing, otherwise index into next element in oscilloscope + 1
 
 // Thread to handle deffered processing of USB interrupt, and
 // read commands out of the UART DMA circular buffer

@@ -145,7 +145,9 @@ static void usb_server_thread(void * ctx) {
             if (ODrive_interface.data_pending) {
                 ODrive_interface.data_pending = false;
 #if defined(USB_PROTOCOL_NATIVE)
-                usb_channel.process_packet(ODrive_interface.rx_buf, ODrive_interface.rx_len);
+                /*int result = */usb_channel.process_packet(ODrive_interface.rx_buf, ODrive_interface.rx_len);
+                //if (result != 0)
+                //    delay_us(500000);
 #elif defined(USB_PROTOCOL_NATIVE_STREAM_BASED)
                 usb_native_stream_input.process_bytes(
                         ODrive_interface.rx_buf, ODrive_interface.rx_len, nullptr);

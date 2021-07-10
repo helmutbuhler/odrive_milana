@@ -139,6 +139,8 @@ int BidirectionalPacketBasedChannel::process_packet(const uint8_t* buffer, size_
 
     uint16_t seq_no = read_le<uint16_t>(&buffer, &length);
 
+    int result = 0;
+
     if (seq_no & 0x8000) {
         // TODO: ack handling
     } else {
@@ -170,7 +172,11 @@ int BidirectionalPacketBasedChannel::process_packet(const uint8_t* buffer, size_
 
         fibre::cbufptr_t input_buffer{buffer, length - 2};
         fibre::bufptr_t output_buffer{tx_buf_ + 2, expected_response_length};
-        fibre::endpoint_handler(endpoint_id, &input_buffer, &output_buffer);
+        bool success = fibre::endpoint_handler(endpoint_id, &input_buffer, &output_buffer);
+        if (!success && endpoint_id)
+            result = -1;
+        if (output_buffer.size() && endpoint_id)
+            result = -1;
 
         // Send response
         if (expect_response) {
@@ -179,9 +185,9 @@ int BidirectionalPacketBasedChannel::process_packet(const uint8_t* buffer, size_
 
             LOG_FIBRE("send packet:\r\n");
             hexdump(tx_buf_, actual_response_length);
-            output_.process_packet(tx_buf_, actual_response_length);
+            result |= output_.process_packet(tx_buf_, actual_response_length);
         }
     }
 
-    return 0;
+    return result;
 }

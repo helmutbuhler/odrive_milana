@@ -46,6 +46,7 @@ interfaces:
         doc: 0 for official releases, 1 otherwise
       brake_resistor_armed: readonly bool
       brake_resistor_saturated: bool
+      oscilloscope_size: readonly uint32
       system_stats:
         c_is_class: False
         attributes:
@@ -187,6 +188,8 @@ interfaces:
       axis1: {type: Axis, c_name: get_axis(1)}
       can: {type: Can, c_name: get_can()}
       test_property: uint32
+      any_errors_and_watchdog_feed: {type: readonly bool, c_getter: get_any_errors_and_watchdog_feed()}
+      trigger_jump: {type: bool, c_setter: set_trigger_jump}
         
     functions:
       test_function: {in: {delta: int32}, out: {cnt: int32}}
@@ -528,6 +531,31 @@ interfaces:
       DC_calib_phC: {type: float32, c_name: DC_calib_.phC}
       phase_current_rev_gain: float32
       effective_current_lim: readonly float32
+      
+      oscilloscope_force_trigger: bool
+      oscilloscope_counter: int64
+      
+      current_threshold: float32
+      current_threshold_mode: int32
+      activated_landing: bool
+
+      l_pos_zero_delta: float32
+      l_pos_zero_max: float32
+      l_base_angle: float32
+      l_vel_gain: float32
+      l_pos_gain: float32
+      l_vel_integrator_gain: float32
+      l_vel_limit: float32
+
+      trigger_jump: bool
+      jump_pos_target: float32
+      j_vel_gain: float32
+      j_pos_gain: float32
+      j_vel_integrator_gain: float32
+      j_vel_limit: float32
+      j_current_lim_margin: float32
+      j_current_lim: float32
+
       current_control:
         c_is_class: False
         attributes:
@@ -713,6 +741,8 @@ interfaces:
               calib_vel_threshold: float32
               cogging_ratio: readonly float32
               anticogging_enabled: bool
+          enable_pos_err_sync: bool
+          pos_err_sync_gain: float32
     functions:
       move_incremental:
         doc: Moves the axes' goal point by a specified increment.
@@ -775,6 +805,7 @@ interfaces:
       calib_scan_response: readonly float32
       pos_abs: int32
       spi_error_rate: readonly float32
+      spi_abs_ams_error_flag: readonly bool
       config:
         c_is_class: False
         attributes:
@@ -783,6 +814,7 @@ interfaces:
           find_idx_on_lockin_only: {type: bool, c_setter: set_find_idx_on_lockin_only}
           abs_spi_cs_gpio_pin: {type: uint16, c_setter: set_abs_spi_cs_gpio_pin}
           zero_count_on_find_idx: bool
+          ignore_abs_ams_error_flag: bool
           cpr: int32
           offset: int32
           pre_calibrated: {type: bool, c_setter: set_pre_calibrated}

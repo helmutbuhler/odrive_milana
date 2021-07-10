@@ -31,6 +31,7 @@ public:
         bool idx_search_unidirectional = false; // Only allow index search in known direction
         bool ignore_illegal_hall_state = false; // dont error on bad states like 000 or 111
         uint16_t abs_spi_cs_gpio_pin = 1;
+        bool ignore_abs_ams_error_flag = false;
         uint16_t sincos_gpio_pin_sin = 3;
         uint16_t sincos_gpio_pin_cos = 4;
 
@@ -84,6 +85,7 @@ public:
     float calib_scan_response_ = 0.0f; // debug report from offset calib
     int32_t pos_abs_ = 0;
     float spi_error_rate_ = 0.0f;
+	bool spi_abs_ams_error_flag_ = false;
 
     float pos_estimate_ = 0.0f; // [turn]
     float vel_estimate_ = 0.0f; // [turn/s]

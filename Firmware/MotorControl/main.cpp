@@ -130,6 +130,30 @@ void ODrive::enter_dfu_mode() {
     }
 }
 
+bool ODrive::get_any_errors_and_watchdog_feed() {
+    bool error = false;
+    for(auto& axis : axes) {
+        axis->watchdog_feed();
+        
+        error = error || axis->error_ != Axis::ERROR_NONE;
+        error = error || axis->fet_thermistor_  .error_ != ThermistorCurrentLimiter::ERROR_NONE;
+        error = error || axis->motor_thermistor_.error_ != ThermistorCurrentLimiter::ERROR_NONE;
+        error = error || axis->motor_.error_ != Motor::ERROR_NONE;
+        error = error || axis->controller_.error_ != Controller::ERROR_NONE;
+        error = error || axis->sensorless_estimator_.error_ != SensorlessEstimator::ERROR_NONE;
+        error = error || axis->encoder_.error_ != Encoder::ERROR_NONE;
+    }
+    error = error || get_can().error_ != ODriveCAN::ERROR_NONE;
+    return error;
+}
+
+void ODrive::set_trigger_jump(bool value) {
+    for(Axis* axis : axes) {
+        axis->motor_.trigger_jump_ = true;
+    }
+}
+
+
 extern "C" int construct_objects(){
 #if HW_VERSION_MAJOR == 3 && HW_VERSION_MINOR >= 3
     if (odrv.config_.enable_i2c_instead_of_can) {
