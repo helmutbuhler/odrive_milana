@@ -257,10 +257,14 @@ bool Controller::update(float* torque_setpoint_output) {
 
 			// Limit sync force so that it only reduces the current
 			// untested!
+#if 0
 			if (axis_ == axes[0])
-				vel_des = clamp(vel_des+sync_err*config_.pos_err_sync_gain, 0, vel_des);
+				vel_des = std::clamp(vel_des+sync_err*config_.pos_err_sync_gain, 0.0f, vel_des);
             else
-				vel_des = clamp(vel_des+sync_err*config_.pos_err_sync_gain, vel_des, 0);
+				vel_des = std::clamp(vel_des+sync_err*config_.pos_err_sync_gain, vel_des, 0.0f);
+#else
+			vel_des = vel_des+sync_err*config_.pos_err_sync_gain;
+#endif
         }
     }
 
