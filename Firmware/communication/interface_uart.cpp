@@ -79,17 +79,25 @@ static void uart_server_thread(void * ctx) {
         // deadline_ms = timeout_to_deadline(PROTOCOL_SERVER_TIMEOUT_MS);
         // Process bytes in one or two chunks (two in case there was a wrap)
         if (new_rcv_idx < dma_last_rcv_idx) {
+#ifdef UART_PROTOCOL_NATIVE
             uart4_stream_input.process_bytes(dma_rx_buffer + dma_last_rcv_idx,
                     UART_RX_BUFFER_SIZE - dma_last_rcv_idx, nullptr); // TODO: use process_all
+#endif
+#ifdef UART_PROTOCOL_ASCII
             ASCII_protocol_parse_stream(dma_rx_buffer + dma_last_rcv_idx,
                     UART_RX_BUFFER_SIZE - dma_last_rcv_idx, uart4_stream_output);
+#endif
             dma_last_rcv_idx = 0;
         }
         if (new_rcv_idx > dma_last_rcv_idx) {
+#ifdef UART_PROTOCOL_NATIVE
             uart4_stream_input.process_bytes(dma_rx_buffer + dma_last_rcv_idx,
                     new_rcv_idx - dma_last_rcv_idx, nullptr); // TODO: use process_all
-            ASCII_protocol_parse_stream(dma_rx_buffer + dma_last_rcv_idx,
+#endif
+#ifdef UART_PROTOCOL_ASCII
+			ASCII_protocol_parse_stream(dma_rx_buffer + dma_last_rcv_idx,
                     new_rcv_idx - dma_last_rcv_idx, uart4_stream_output);
+#endif
             dma_last_rcv_idx = new_rcv_idx;
         }
     };

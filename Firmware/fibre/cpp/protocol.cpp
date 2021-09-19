@@ -81,19 +81,21 @@ int StreamBasedPacketSink::process_packet(const uint8_t *buffer, size_t length) 
         return -1;
 
     LOG_FIBRE("send header\r\n");
-    uint8_t header[] = {
+    //uint8_t header[] = {
+    uint8_t header[256] = {
         CANONICAL_PREFIX,
         static_cast<uint8_t>(length),
         0
     };
     header[2] = calc_crc8<CANONICAL_CRC8_POLYNOMIAL>(CANONICAL_CRC8_INIT, header, 2);
 
-    if (output_.process_bytes(header, sizeof(header), nullptr))
-        return -1;
+    //if (output_.process_bytes(header, sizeof(header), nullptr))
+    //    return -1;
     LOG_FIBRE("send payload:\r\n");
     hexdump(buffer, length);
-    if (output_.process_bytes(buffer, length, nullptr))
-        return -1;
+    memcpy(header+3, buffer, length);
+    //if (output_.process_bytes(buffer, length, nullptr))
+    //    return -1;
 
     LOG_FIBRE("send crc16\r\n");
     uint16_t crc16 = calc_crc16<CANONICAL_CRC16_POLYNOMIAL>(CANONICAL_CRC16_INIT, buffer, length);
@@ -101,8 +103,12 @@ int StreamBasedPacketSink::process_packet(const uint8_t *buffer, size_t length) 
         (uint8_t)((crc16 >> 8) & 0xff),
         (uint8_t)((crc16 >> 0) & 0xff)
     };
-    if (output_.process_bytes(crc16_buffer, 2, nullptr))
+    header[3+length+0] = crc16_buffer[0];
+    header[3+length+1] = crc16_buffer[1];
+    if (output_.process_bytes(header, 3+length+2, nullptr))
         return -1;
+    //if (output_.process_bytes(crc16_buffer, 2, nullptr))
+    //    return -1;
     LOG_FIBRE("sent!\r\n");
     return 0;
 }

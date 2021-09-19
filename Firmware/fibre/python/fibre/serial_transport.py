@@ -13,12 +13,16 @@ import fibre
 from fibre.utils import TimeoutError
 
 # TODO: make this customizable
-DEFAULT_BAUDRATE = 115200
+#DEFAULT_BAUDRATE = 115200
+DEFAULT_BAUDRATE = 921600
 
 class SerialStreamTransport(fibre.protocol.StreamSource, fibre.protocol.StreamSink):
     def __init__(self, port, baud):
         self._timeout = 1
-        self._dev = serial.Serial(port, baud, timeout=self._timeout)
+        print("stopbits")
+        self._dev = serial.Serial(port, baud, timeout=self._timeout,
+                                  stopbits=serial.STOPBITS_TWO)
+        print("ok!")
 
     def process_bytes(self, bytes):
         self._dev.write(bytes)
