@@ -466,15 +466,16 @@ bool Motor::FOC_current(float Id_des, float Iq_des, float I_phase, float pwm_pha
     if (current_threshold_mode_ == -1) {
         current_threshold_mode_ = 0;
 
-        float abs_pos0 =  axes[0]->encoder_.pos_estimate_ + axes[0]->motor_.l_base_angle_;
-        float abs_pos1 = -axes[1]->encoder_.pos_estimate_ - axes[1]->motor_.l_base_angle_;
+        float abs_pos0 = -(axes[0]->encoder_.pos_estimate_ + axes[0]->motor_.l_base_angle_);
+        float abs_pos1 =   axes[1]->encoder_.pos_estimate_ + axes[1]->motor_.l_base_angle_;
         float abs_target = std::min((abs_pos0+abs_pos1)*0.5f + l_pos_zero_delta_, l_pos_zero_max_);
         //axis_->controller_.config_.control_mode = Controller::CONTROL_MODE_TORQUE_CONTROL;
         axis_->controller_.config_.input_mode = Controller::INPUT_MODE_PASSTHROUGH;
         if (axis_->axis_num_ == 0)
-            axis_->controller_.input_pos_              = abs_target-l_base_angle_;
+            axis_->controller_.input_pos_              = -abs_target - l_base_angle_;
         else
-            axis_->controller_.input_pos_              = -abs_target-l_base_angle_;
+            axis_->controller_.input_pos_              =  abs_target - l_base_angle_;
+
         axis_->controller_.input_pos_updated_          = true;
         axis_->controller_.config_.vel_gain            = l_vel_gain_;
         axis_->controller_.config_.pos_gain            = l_pos_gain_;
