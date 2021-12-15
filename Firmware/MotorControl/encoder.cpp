@@ -315,6 +315,9 @@ void Encoder::sample_now() {
         {
             axis_->motor_.log_timing(TIMING_LOG_SAMPLE_NOW);
             // Do nothing
+
+            // BalanceBot:
+            extra_incremental_counter_ = hw_config_.timer->Instance->CNT;
         } break;
 
         default: {

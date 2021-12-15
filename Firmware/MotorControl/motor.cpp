@@ -330,11 +330,17 @@ bool Motor::FOC_voltage(float v_d, float v_q, float pwm_phase) {
     return enqueue_voltage_timings(v_alpha, v_beta);
 }
 
-void add_oscilloscope(int axis_num, float value) {
+static void add_oscilloscope(int axis_num, float value) {
     if (oscilloscope_pos[axis_num] <= OSCILLOSCOPE_SIZE) {
 		oscilloscope[axis_num][oscilloscope_pos[axis_num]-1] = float_to_half(value);
         oscilloscope_pos[axis_num]++;
     }
+}
+static void set_abs_input_pos0(float abs_target) {
+    axes[0]->controller_.input_pos_ = -abs_target - axes[0]->motor_.l_base_angle_;
+}
+static void set_abs_input_pos1(float abs_target) {
+    axes[1]->controller_.input_pos_ = abs_target - axes[1]->motor_.l_base_angle_;
 }
 
 bool Motor::FOC_current(float Id_des, float Iq_des, float I_phase, float pwm_phase) {
@@ -440,11 +446,13 @@ bool Motor::FOC_current(float Id_des, float Iq_des, float I_phase, float pwm_pha
             oscilloscope_force_trigger_ = false;
         }
         if (oscilloscope_pos[axis_num] && axis_num < OSCILLOSCOPE_NUM_AXES) {
+
             //add_oscilloscope(axis_num, axis_->loop_counter_);
             add_oscilloscope(axis_num, axis_->encoder_.pos_estimate_);
             add_oscilloscope(axis_num, Iq_des);
             //add_oscilloscope(axis_num, ictrl.Iq_measured);
             add_oscilloscope(axis_num, axis_->controller_.pos_setpoint_);
+
             if (oscilloscope_pos[axis_num] >= OSCILLOSCOPE_SIZE+1) {
                 oscilloscope_pos[axis_num] = 0;
                 if (axis_num == 0) {
@@ -497,6 +505,55 @@ bool Motor::FOC_current(float Id_des, float Iq_des, float I_phase, float pwm_pha
         axis_->trap_traj_ .config_.vel_limit           = j_vel_limit_;
         config_.current_lim_margin                     = j_current_lim_margin_;
         config_.current_lim                            = j_current_lim_;
+    }
+    if (trigger_stop_landing_) {
+        trigger_stop_landing_ = false;
+        axis_->controller_.config_.input_mode          = (Controller::InputMode)sl_input_mode_;
+        axis_->controller_.config_.enable_pos_err_sync = false;
+        axis_->controller_.config_.vel_gain            = sl_vel_gain_;
+        axis_->controller_.config_.pos_gain            = sl_pos_gain_;
+        axis_->controller_.config_.vel_integrator_gain = sl_vel_integrator_gain_;
+        axis_->controller_.config_.vel_limit           = sl_vel_limit_*5.0f;
+        axis_->trap_traj_ .config_.vel_limit           = sl_vel_limit_;
+        config_.current_lim_margin                     = sl_current_lim_margin_;
+        config_.current_lim                            = sl_current_lim_;
+    }
+
+    if (axis_->axis_num_ == 0 && odrv.enable_side_balance_) {
+		// Calculate side_balance: the position difference between both legs.
+		// It is calculated such that two variables are close to zero:
+		// - The side angle imu value.
+		// - The force difference of both leg motors.
+
+    	const float stand_control_min_leg_angle = -0.4f, stand_control_max_leg_angle = 0.97f;
+
+		float delta = 0;
+		delta += odrv.side_angle_factored_;
+        float current0 = axes[0]->motor_.current_control_.Iq_setpoint;
+        //float current0 = Iq_des;
+        float current1 = axes[1]->motor_.current_control_.Iq_setpoint;
+		delta += (-current0 - current1) * odrv.side_balance_current_factor_;
+
+		float& side_balance = odrv.side_balance_;
+		side_balance += delta * (1.0f / 8000.0f);
+		if (side_balance > 0) {
+			side_balance = std::clamp(side_balance,
+                                 stand_control_min_leg_angle-odrv.stand_control_angle_,
+                                 stand_control_max_leg_angle-odrv.stand_control_angle_);
+			axes[0]->controller_.input_pos_ = odrv.stand_control_angle_+side_balance;
+			axes[1]->controller_.input_pos_ = odrv.stand_control_angle_;
+			set_abs_input_pos0(odrv.stand_control_angle_+side_balance);
+			set_abs_input_pos1(odrv.stand_control_angle_);
+		} else {
+			side_balance = std::clamp(side_balance,
+                                 odrv.stand_control_angle_-stand_control_max_leg_angle,
+                                 odrv.stand_control_angle_-stand_control_min_leg_angle);
+			set_abs_input_pos0(odrv.stand_control_angle_);
+			set_abs_input_pos1(odrv.stand_control_angle_-side_balance);
+		}
+	}
+    if (axis_->axis_num_ == 0 && !odrv.enable_side_balance_) {
+		odrv.side_balance_ = 0;
     }
     return true;
 }

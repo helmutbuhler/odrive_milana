@@ -184,6 +184,15 @@ public:
     float j_vel_limit_ = 0;
     float j_current_lim_margin_ = 0;
     float j_current_lim_ = 0;
+
+    bool  trigger_stop_landing_ = false;
+    int32_t sl_input_mode_ = 0;
+    float sl_vel_gain_ = 0;
+    float sl_pos_gain_ = 0;
+    float sl_vel_integrator_gain_ = 0;
+    float sl_vel_limit_ = 0;
+    float sl_current_lim_margin_ = 0;
+    float sl_current_lim_ = 0;
 };
 
 #endif // __MOTOR_HPP

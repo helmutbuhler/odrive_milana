@@ -334,7 +334,13 @@ public:
     bool get_any_errors_and_watchdog_feed();
 
     void set_trigger_jump(bool value);
-    bool trigger_jump_; // dummy
+    bool trigger_jump_ = false; // dummy
+
+    bool enable_side_balance_ = false;
+    float stand_control_angle_ = 0;
+    float side_angle_factored_ = 0;
+    float side_balance_current_factor_ = 0;
+    float side_balance_ = 0;
 };
 
 extern ODrive odrv; // defined in main.cpp

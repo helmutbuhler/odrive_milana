@@ -117,6 +117,8 @@ public:
     constexpr float getCoggingRatio(){
         return 1.0f / 3600.0f;
     }
+
+    uint32_t extra_incremental_counter_ = 0;
 };
 
 #endif // __ENCODER_HPP

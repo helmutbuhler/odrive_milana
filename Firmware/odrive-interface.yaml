@@ -190,6 +190,11 @@ interfaces:
       test_property: uint32
       any_errors_and_watchdog_feed: {type: readonly bool, c_getter: get_any_errors_and_watchdog_feed()}
       trigger_jump: {type: bool, c_setter: set_trigger_jump}
+      enable_side_balance: bool
+      stand_control_angle: float32
+      side_angle_factored: float32
+      side_balance_current_factor: float32
+      side_balance: float32
         
     functions:
       test_function: {in: {delta: int32}, out: {cnt: int32}}
@@ -556,6 +561,15 @@ interfaces:
       j_current_lim_margin: float32
       j_current_lim: float32
 
+      trigger_stop_landing: bool
+      sl_input_mode: int32
+      sl_vel_gain: float32
+      sl_pos_gain: float32
+      sl_vel_integrator_gain: float32
+      sl_vel_limit: float32
+      sl_current_lim_margin: float32
+      sl_current_lim: float32
+
       current_control:
         c_is_class: False
         attributes:
@@ -806,6 +820,7 @@ interfaces:
       pos_abs: int32
       spi_error_rate: readonly float32
       spi_abs_ams_error_flag: readonly bool
+      extra_incremental_counter: readonly uint32
       config:
         c_is_class: False
         attributes:
