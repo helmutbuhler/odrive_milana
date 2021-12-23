@@ -342,6 +342,19 @@ public:
     float side_angle_factored_ = 0;
     float side_balance_current_factor_ = 0;
     float side_balance_ = 0;
+
+    int get_debug1() {
+        extern int debug1;
+        return debug1;
+    }
+    int get_debug2() {
+        extern int debug2;
+        return debug2;
+    }
+    int get_debug3() {
+        extern int debug3;
+        return debug3;
+    }
 };
 
 extern ODrive odrv; // defined in main.cpp

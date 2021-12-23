@@ -21,9 +21,12 @@ static uint32_t dma_last_rcv_idx;
 // FIXME: the stdlib doesn't know about CMSIS threads, so this is just a global variable
 // static thread_local uint32_t deadline_ms = 0;
 
-osThreadId uart_thread;
+osThreadId uart_thread = 0;
 const uint32_t stack_size_uart_thread = 4096;  // Bytes
 
+int debug1 = 0;
+int debug2 = 0;
+int debug3 = 0;
 
 class UART4Sender : public StreamSink {
 public:
@@ -62,6 +65,7 @@ static void uart_server_thread(void * ctx) {
     (void) ctx;
 
     for (;;) {
+        debug1++;
         // Check for UART errors and restart receive DMA transfer if required
         if (huart4.RxState != HAL_UART_STATE_BUSY_RX) {
             HAL_UART_AbortReceive(&huart4);
@@ -120,7 +124,11 @@ void start_uart_server() {
 }
 
 void uart_poll() {
-    osThreadResume(uart_thread);
+    debug2++;
+    if (uart_thread) {
+        debug3++;
+        osThreadResume(uart_thread);
+    }
 }
 
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef* huart) {

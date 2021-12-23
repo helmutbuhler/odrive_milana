@@ -195,6 +195,9 @@ interfaces:
       side_angle_factored: float32
       side_balance_current_factor: float32
       side_balance: float32
+      debug1: {type: readonly int32, c_getter: get_debug1()}
+      debug2: {type: readonly int32, c_getter: get_debug2()}
+      debug3: {type: readonly int32, c_getter: get_debug3()}
         
     functions:
       test_function: {in: {delta: int32}, out: {cnt: int32}}
