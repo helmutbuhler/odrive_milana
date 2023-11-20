@@ -44,9 +44,6 @@ public:
         float mirror_ratio = 1.0f;
         uint8_t load_encoder_axis = -1;  // default depends on Axis number and is set in load_configuration()
 	
-		bool enable_pos_err_sync = false;
-		float pos_err_sync_gain = 0;
-
         // custom setters
         Controller* parent;
         void set_input_filter_bandwidth(float value) { input_filter_bandwidth = value; parent->update_filter_gains(); }
@@ -69,8 +66,11 @@ public:
     // TODO: make this more similar to other calibration loops
     void start_anticogging_calibration();
     bool anticogging_calibration(float pos_estimate, float vel_estimate);
+    float get_anticogging_map(int32_t index);
 
     void update_filter_gains();
+	void handle_side_balancing();
+    void handle_landing_mode();
     bool update(float* torque_setpoint);
 
     Config_t& config_;
@@ -103,6 +103,16 @@ public:
     bool trajectory_done_ = true;
 
     bool anticogging_valid_ = false;
+
+    // Landing mode
+    bool enable_landing_detector_ = false;
+    bool enable_landing_mode_ = false;
+    float l_max_vel_ = 0;
+    float l_vel_target_delta_ = 0;
+    float l_vel_target_ = 0;
+    int32_t l_frame_counter_ = 0;
+    float l_initial_vel_ = 0;
+    float l_vel_integrator_ = 0;
 
     // custom setters
     void set_input_pos(float value);

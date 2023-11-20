@@ -148,9 +148,22 @@ bool ODrive::get_any_errors_and_watchdog_feed() {
 }
 
 void ODrive::set_trigger_jump(bool value) {
-    for(Axis* axis : axes) {
-        axis->motor_.trigger_jump_ = true;
+    axes[0]->motor_.trigger_jump_timer_ = std::max( jump_left_right_timeout_, (int32_t)1);
+    axes[1]->motor_.trigger_jump_timer_ = std::max(-jump_left_right_timeout_, (int32_t)1);
+}
+void ODrive::set_enable_landing_detector(bool value) {
+    axes[0]->controller_.enable_landing_detector_ = value;
+    axes[1]->controller_.enable_landing_detector_ = value;
+}
+
+float side_angle_motor_force_limit_current = 0;
+float side_angle_d_ = 0;
+
+void ODrive::set_side_balance_mode(uint32_t value) {
+    if (side_balance_mode_ == 1 && value == 0) {
+        side_angle_motor_force_limit_current = 0;
     }
+    side_balance_mode_ = value;
 }
 
 

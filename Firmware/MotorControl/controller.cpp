@@ -4,6 +4,15 @@
 
 #include <algorithm>
 
+const float leg_gear_reduction = 3;
+const float pi = 3.141592653589f;
+const float tau = pi*2.0f;
+const float leg_angle_1 = -130*pi/180;
+const float upper_leg_length = 125;
+const float lower_leg_length = 91.3685f;
+//float wheel_side_distance = odrv.wheel_side_distance_;
+const float wheel_side_distance = 178.0f;
+
 Controller::Controller(Config_t& config) :
     config_(config)
 {
@@ -68,6 +77,10 @@ void Controller::start_anticogging_calibration() {
     }
 }
 
+float Controller::get_anticogging_map(int32_t index) {
+    return config_.anticogging.cogging_map[index];
+}
+
 
 /*
  * This anti-cogging implementation iterates through each encoder position,
@@ -114,7 +127,292 @@ static float limitVel(const float vel_limit, const float vel_estimate, const flo
     return std::clamp(torque, Tmin, Tmax);
 }
 
+float sq(float x) {
+	return x*x;
+}
+
+float lerp(float a, float b, float t)
+{
+	return a + (b-a)*t;
+}
+
+void ODrive::set_side_angle(float value) {
+    uint32_t current_counter = axes[0]->loop_counter_;
+    float new_side_angle_d = (value-side_angle_) / (current_counter-last_side_angle_counter_) * 8000.0f;
+
+    // target_gain_d sometimes causes oscillation, where it flips almost every jetson frame
+    // the sign of the velocity. We decrease the value when the sign flips here, to prevent that.
+    // Kind of a hack, but it seems to fix the oscillation.
+    /*if ((new_side_angle_d > 0) != (side_angle_d_ > 0))
+        side_angle_d_ = new_side_angle_d * 0.01f;
+    else
+        side_angle_d_ = new_side_angle_d;*/
+
+    side_angle_d_ = lerp(
+			new_side_angle_d,
+			side_angle_d_,
+			side_balance_error_d_smooth_factor_);
+
+    side_angle_ = value;
+    last_side_angle_counter_ = current_counter;
+}
+
+void Controller::handle_side_balancing() {
+    float x_angle_hip_angle_l = odrv.x_angle_hip_angle_l_;
+    float x_angle_hip_angle_r = odrv.x_angle_hip_angle_r_;
+    float leg_pos_l =  (axes[1]->encoder_.pos_estimate_+axes[1]->motor_.leg_base_angle_);
+    float leg_pos_r = -(axes[0]->encoder_.pos_estimate_+axes[0]->motor_.leg_base_angle_);
+    float leg_angle_l = (1-leg_pos_l) * (tau / leg_gear_reduction) + leg_angle_1;
+    float leg_angle_r = (1-leg_pos_r) * (tau / leg_gear_reduction) + leg_angle_1;
+    float leg_height_upper_l = our_arm_cos_f32(x_angle_hip_angle_l) * upper_leg_length;
+    float leg_height_upper_r = our_arm_cos_f32(x_angle_hip_angle_r) * upper_leg_length;
+    float leg_height_lower_l = our_arm_cos_f32(x_angle_hip_angle_l + leg_angle_l) * lower_leg_length;
+    float leg_height_lower_r = our_arm_cos_f32(x_angle_hip_angle_r + leg_angle_r) * lower_leg_length;
+    float leg_height_l = leg_height_upper_l + leg_height_lower_l;
+    float leg_height_r = leg_height_upper_r + leg_height_lower_r;
+
+    // Skip atan for performance reasons (argument should be small enough)
+    //float side_angle_motor = fast_atan2((leg_height_r-leg_height_l)/wheel_side_distance, 1);
+    float side_angle_motor = (leg_height_r-leg_height_l)/wheel_side_distance;
+
+    float side_angle_motor_dl = -lower_leg_length*wheel_side_distance*(tau / leg_gear_reduction)*our_arm_sin_f32(x_angle_hip_angle_l + leg_angle_l) / (sq(leg_height_upper_l+leg_height_lower_l-leg_height_r)+sq(wheel_side_distance));
+    float side_angle_motor_dr = -lower_leg_length*wheel_side_distance*(tau / leg_gear_reduction)*our_arm_sin_f32(x_angle_hip_angle_r + leg_angle_r) / (sq(leg_height_upper_r+leg_height_lower_r-leg_height_l)+sq(wheel_side_distance));
+
+    float leg_vel_r = axes[0]->encoder_.vel_estimate_; // TODO: Missing minus sign?
+    float leg_vel_l = axes[1]->encoder_.vel_estimate_;
+
+    float side_angle_motor_d = side_angle_motor_dr*leg_vel_r +
+                               side_angle_motor_dl*leg_vel_l;
+
+    float average_leg_pos = (leg_pos_l+leg_pos_r)*0.5f;
+
+	float average_leg_pos_dl = 0.5f;
+    float average_leg_pos_dr = -0.5f;
+    float average_leg_pos_d = average_leg_pos_dr*leg_vel_r + average_leg_pos_dl*leg_vel_l;
+
+	float side_angle_motor_force;
+    if (odrv.side_balance_mode_ == 0) {
+	    side_angle_motor_force = 
+			    (odrv.side_angle_motor_target_  -side_angle_motor  ) * odrv.side_gain_p_ +
+			    (odrv.side_angle_motor_target_d_-side_angle_motor_d) * odrv.side_gain_d_;
+    } else {
+        side_angle_motor_force  = (odrv.side_angle_target_-odrv.side_angle_  ) * odrv.target_gain_p_;
+        side_angle_motor_force += (0                      -side_angle_d_) * odrv.target_gain_d_;
+    }
+
+    if (side_angle_motor_force_limit_current < odrv.side_angle_motor_force_limit_) {
+    	const float side_angle_motor_force_limit_time = 1;
+        side_angle_motor_force_limit_current +=
+                odrv.side_angle_motor_force_limit_ *
+                (1/8000.0f) /
+                side_angle_motor_force_limit_time;
+    }
+    if (side_angle_motor_force_limit_current > odrv.side_angle_motor_force_limit_) {
+        side_angle_motor_force_limit_current = odrv.side_angle_motor_force_limit_;
+    }
+    side_angle_motor_force = std::clamp(side_angle_motor_force,
+            -side_angle_motor_force_limit_current,
+             side_angle_motor_force_limit_current);
+    //odrv.side_angle_motor_force_ = side_angle_motor_force;
+
+	odrv.average_leg_pos_integrator_ += (odrv.average_leg_pos_target_-average_leg_pos) * odrv.average_gain_i_ * (1/8000.0f);
+    float average_leg_pos_force =
+			odrv.average_leg_pos_integrator_ +
+			(odrv.average_leg_pos_target_-average_leg_pos  ) * odrv.average_gain_p_ +
+			(0                           -average_leg_pos_d) * odrv.average_gain_d_;
+    //odrv.average_leg_pos_force_ = average_leg_pos_force;
+
+	// multiplying by jacobian transpose to get the force in motor space
+    float force_l = side_angle_motor_force * side_angle_motor_dl + average_leg_pos_force * average_leg_pos_dl;
+    float force_r = side_angle_motor_force * side_angle_motor_dr + average_leg_pos_force * average_leg_pos_dr;
+    
+    // calculate estimate of acceleration
+    //float smooth = odrv.acc_smooth_factor_;
+    const float smooth = 0.999f;
+    static float last_leg_vel_r;
+    static float acc_r_;
+	acc_r_ = acc_r_ * smooth + (leg_vel_r-last_leg_vel_r) * (1-smooth);
+    last_leg_vel_r = leg_vel_r;
+    static float last_leg_vel_l;
+    static float acc_l_;
+	acc_l_ = acc_l_ * smooth + (leg_vel_l-last_leg_vel_l) * (1-smooth);
+    last_leg_vel_l = leg_vel_l;
+
+    if (force_r > 0) {
+        float acc_current = odrv.acc_current_gain_ * acc_r_;
+        if (force_r+acc_current < 0 && leg_vel_r < 0)
+            force_r = 0;
+        else
+            force_r += acc_current;
+
+        if (-leg_vel_r < odrv.side_balance_down_limit_threshold_)
+		    force_r += (-leg_vel_r-odrv.side_balance_down_limit_threshold_) * odrv.side_balance_down_limit_factor_;
+    }
+    if (force_l < 0) {
+        float acc_current = odrv.acc_current_gain_ * acc_l_;
+        if (force_l+acc_current > 0 && leg_vel_l > 0)
+            force_l = 0;
+        else
+            force_l += acc_current;
+
+        if (leg_vel_l < odrv.side_balance_down_limit_threshold_)
+		    force_l -= (leg_vel_l-odrv.side_balance_down_limit_threshold_) * odrv.side_balance_down_limit_factor_;
+    }
+    
+	if (x_angle_hip_angle_l+leg_angle_l > odrv.side_balance_max_vertical_angle_)
+		force_l += (x_angle_hip_angle_l+leg_angle_l - odrv.side_balance_max_vertical_angle_) * odrv.side_balance_max_vertical_angle_gain_;
+	if (x_angle_hip_angle_r+leg_angle_r > odrv.side_balance_max_vertical_angle_)
+		force_r -= (x_angle_hip_angle_r+leg_angle_r - odrv.side_balance_max_vertical_angle_) * odrv.side_balance_max_vertical_angle_gain_;
+
+	// Stay within leg limits
+    const float stand_control_max_leg_angle = 0.97f;
+	if (force_l > 0 && leg_pos_l > stand_control_max_leg_angle)
+		force_l = 0;
+
+	if (force_r < 0 && leg_pos_r > stand_control_max_leg_angle)
+		force_r = 0;
+
+    // Torque limiting
+    float Tlim = axis_->motor_.config_.current_lim;
+    force_l = std::clamp(force_l, -Tlim, Tlim);
+    force_r = std::clamp(force_r, -Tlim, Tlim);
+
+	torque_setpoint_ = force_r;
+	axes[1]->controller_.torque_setpoint_ = force_l;
+}
+
+void Controller::handle_landing_mode() {
+    float leg_pos;
+	if (axis_->axis_num_ == 1)
+        leg_pos =  (axes[1]->encoder_.pos_estimate_+axes[1]->motor_.leg_base_angle_);
+    else
+        leg_pos = -(axes[0]->encoder_.pos_estimate_+axes[0]->motor_.leg_base_angle_);
+
+    float leg_pos_target;
+	if (axis_->axis_num_ == 1)
+        leg_pos_target =  (pos_setpoint_+axes[1]->motor_.leg_base_angle_);
+    else
+        leg_pos_target = -(pos_setpoint_+axes[0]->motor_.leg_base_angle_);
+        
+    float leg_vel;
+	if (axis_->axis_num_ == 1)
+        leg_vel =  axes[1]->encoder_.vel_estimate_;
+    else
+        leg_vel = -axes[0]->encoder_.vel_estimate_;
+
+    if (odrv.l_do_straightening_) {
+        float leg_angle        = (1 - leg_pos)        * (tau / leg_gear_reduction) + leg_angle_1;
+        float leg_angle_target = (1 - leg_pos_target) * (tau / leg_gear_reduction) + leg_angle_1;
+        float leg_angle_vel    = -leg_vel             * (tau / leg_gear_reduction);
+
+        float l_base_angle = odrv.l_base_angle_;
+        leg_pos        = -our_arm_cos_f32(l_base_angle + leg_angle);
+        leg_pos_target = -our_arm_cos_f32(l_base_angle + leg_angle_target);
+        leg_vel        =  our_arm_sin_f32(l_base_angle + leg_angle) * leg_angle_vel;
+    }
+
+    float pos_err = leg_pos_target - leg_pos;
+    bool stop_landing = false;
+    if (pos_err < 0.005f) {
+        stop_landing = true;
+        pos_err = 0.005f; // prevent division by zero below
+        l_frame_counter_ = -10;
+    }
+
+    l_max_vel_ = std::max(l_max_vel_, 2.0f * pos_err / odrv.l_max_time_);
+    if (odrv.l_do_max_vel_) {
+        l_max_vel_ = std::max(l_max_vel_, leg_vel);
+    }
+
+    l_vel_target_delta_ -= 0.5f * sq(l_vel_target_) / pos_err * CURRENT_MEAS_PERIOD;
+    l_vel_target_ = l_max_vel_ + l_vel_target_delta_;
+    if (l_vel_target_ < 0) {
+        stop_landing = true;
+        l_frame_counter_ = -20;
+    }
+
+    float vel_error = l_vel_target_ - leg_vel;
+    float leg_current = vel_error * odrv.l_vel_gain_ + l_vel_integrator_;
+    l_vel_integrator_ += vel_error * odrv.l_vel_integrator_gain_ * current_meas_period;
+
+    // PD Controller to synchronize left and right leg
+    /*float sync_err_pos = leg_pos_l - leg_pos_r;
+    float sync_err_vel = leg_vel_l - leg_vel_r;
+    leg_current_l -= sync_err_pos*odrv.l_sync_gain_pos_ + sync_err_vel*odrv.l_sync_gain_vel_;
+    leg_current_r += sync_err_pos*odrv.l_sync_gain_pos_ + sync_err_vel*odrv.l_sync_gain_vel_;*/
+
+    l_frame_counter_++;
+    if (l_frame_counter_ < odrv.l_initial_measure_time_frames_) {
+        // In the first few frames of landing, the leg is still accelerating and we don't yet
+        // know the maximum velocity. This means the velocity is usually much lower than l_max_vel
+        // (which has a minimum value due to l_max_time). This causes a quite large positive current,
+        // which we don't want. It would prevent solid grip of the wheels with the ground.
+        leg_current = std::min(leg_current, odrv.l_initial_measure_current_);
+        l_vel_integrator_ = 0;
+    }
+
+    //float initial_vel_target = l_initial_vel_ + l_frame_counter_*odrv.l_initial_expected_accel_per_frame_;
+    //float initial_leg_current = (initial_vel_target-leg_vel) * odrv.l_initial_accel_gain_;
+    //leg_current = std::min(leg_current, initial_leg_current);
+
+    // Torque limiting
+    float Tlim = axis_->motor_.config_.current_lim;
+    leg_current = std::clamp(leg_current, -Tlim, Tlim);
+
+
+
+    if (stop_landing) {
+        axes[0]->motor_.trigger_stop_landing_ = true;
+        axes[1]->motor_.trigger_stop_landing_ = true;
+        leg_current = 0;
+        odrv.enable_landing_mode_ = false;
+    }
+
+	if (axis_->axis_num_ == 1)
+	    torque_setpoint_ =  leg_current;
+    else
+        torque_setpoint_ = -leg_current;
+}
+
 bool Controller::update(float* torque_setpoint_output) {
+
+    if (odrv.enable_side_balance_) {
+        if (std::abs(axis_->encoder_.vel_estimate_) > config_.vel_limit) {
+            set_error(ERROR_OVERSPEED);
+            return false;
+        }
+        if (axes[0]->current_state_== Axis::AXIS_STATE_CLOSED_LOOP_CONTROL &&
+			axes[1]->current_state_== Axis::AXIS_STATE_CLOSED_LOOP_CONTROL) {
+
+	        if (axis_->axis_num_ == 0) {
+			    handle_side_balancing();
+			    //osSignalSet(axes[1]->thread_id_, Axis::M_SIGNAL_TORQUE_TARGET_DONE_AXIS_0);
+            } /*else {
+			    if (osSignalWait(Axis::M_SIGNAL_TORQUE_TARGET_DONE_AXIS_0, PH_CURRENT_MEAS_TIMEOUT).status != osEventSignal) {
+	                set_error(ERROR_INVALID_MIRROR_AXIS);
+				    return false;
+                }
+            }*/
+        } else {
+            torque_setpoint_ = 0;
+			odrv.average_leg_pos_integrator_ = -6;
+        }
+		if (torque_setpoint_output) *torque_setpoint_output = torque_setpoint_;
+		return true;
+    }
+    odrv.average_leg_pos_integrator_ = -6;
+    
+    if (enable_landing_mode_) {
+        if (axes[0]->current_state_== Axis::AXIS_STATE_CLOSED_LOOP_CONTROL &&
+			axes[1]->current_state_== Axis::AXIS_STATE_CLOSED_LOOP_CONTROL) {
+            handle_landing_mode();
+        } else {
+            torque_setpoint_ = 0;
+        }
+        if (torque_setpoint_output) *torque_setpoint_output = torque_setpoint_;
+        return true;
+    }
+
     float* pos_estimate_linear = (pos_estimate_valid_src_ && *pos_estimate_valid_src_)
             ? pos_estimate_linear_src_ : nullptr;
     float* pos_estimate_circular = (pos_estimate_valid_src_ && *pos_estimate_valid_src_)
@@ -248,24 +546,6 @@ bool Controller::update(float* torque_setpoint_output) {
         if (config_.enable_gain_scheduling && abs_pos_err <= config_.gain_scheduling_width) {
             gain_scheduling_multiplier = abs_pos_err / config_.gain_scheduling_width;
         }
-
-		if (config_.enable_pos_err_sync) {
-			Axis* other = (axis_ == axes[0] ? axes[1] : axes[0]);
-            float other_pos_err = other->controller_.pos_setpoint_ - other->encoder_.pos_estimate_;
-			other_pos_err = -other_pos_err;
-			float sync_err = pos_err - other_pos_err;
-
-			// Limit sync force so that it only reduces the current
-			// untested!
-#if 0
-			if (axis_ == axes[0])
-				vel_des = std::clamp(vel_des+sync_err*config_.pos_err_sync_gain, 0.0f, vel_des);
-            else
-				vel_des = std::clamp(vel_des+sync_err*config_.pos_err_sync_gain, vel_des, 0.0f);
-#else
-			vel_des = vel_des+sync_err*config_.pos_err_sync_gain;
-#endif
-        }
     }
 
     // Velocity limiting
@@ -364,8 +644,6 @@ bool Controller::update(float* torque_setpoint_output) {
 }
 
 void Controller::set_input_pos(float value) {
-    if (!axis_->motor_.activated_landing_) {
-        input_pos_ = value;
-        input_pos_updated();
-    }
+    input_pos_ = value;
+    input_pos_updated();
 }

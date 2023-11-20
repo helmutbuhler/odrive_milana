@@ -118,7 +118,12 @@ public:
         return 1.0f / 3600.0f;
     }
 
-    uint32_t extra_incremental_counter_ = 0;
+    void set_do_extra_incremental_counter_index(bool set);
+    void extra_incremental_counter_index_cb();
+    int16_t extra_incremental_counter_ = 0;
+    int16_t extra_incremental_counter_index_error_ = 0;
+    uint32_t extra_incremental_counter_index_count_ = 0;
+    bool do_extra_incremental_counter_index_ = false;
 };
 
 #endif // __ENCODER_HPP

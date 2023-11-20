@@ -332,23 +332,38 @@ bool Motor::FOC_voltage(float v_d, float v_q, float pwm_phase) {
 
 static void add_oscilloscope(int axis_num, float value) {
     if (oscilloscope_pos[axis_num] <= OSCILLOSCOPE_SIZE) {
-		oscilloscope[axis_num][oscilloscope_pos[axis_num]-1] = float_to_half(value);
+        oscilloscope[axis_num][oscilloscope_pos[axis_num]-1] = float_to_half(value);
         oscilloscope_pos[axis_num]++;
     }
 }
+/*
 static void set_abs_input_pos0(float abs_target) {
-    axes[0]->controller_.input_pos_ = -abs_target - axes[0]->motor_.l_base_angle_;
+    axes[0]->controller_.input_pos_ = -abs_target - axes[0]->motor_.leg_base_angle_;
 }
 static void set_abs_input_pos1(float abs_target) {
-    axes[1]->controller_.input_pos_ = abs_target - axes[1]->motor_.l_base_angle_;
+    axes[1]->controller_.input_pos_ = abs_target - axes[1]->motor_.leg_base_angle_;
 }
+
+static float softplus(float x) {
+    // fast approximation
+    float z = x;
+    if (x < 0) {
+        x = -x;
+        z = 0;
+    }
+    x += 0.25f;
+    return 0.6f / (x*x+0.8f) + z;
+
+    //return log(1.0f+exp(x)); // definition
+    //return log(1.0f+exp(-abs(x))) + std::max(x, 0.0f); // more stable, very slow
+}*/
 
 bool Motor::FOC_current(float Id_des, float Iq_des, float I_phase, float pwm_phase) {
     // Syntactic sugar
     CurrentControl_t& ictrl = current_control_;
 
     // For Reporting
-    ictrl.Iq_setpoint = Iq_des;
+    ictrl.Iq_setpoint = Iq_des*config_.direction;
 
     // Check for current sense saturation
     if (std::abs(current_meas_.phB) > ictrl.overcurrent_trip_level || std::abs(current_meas_.phC) > ictrl.overcurrent_trip_level) {
@@ -439,19 +454,44 @@ bool Motor::FOC_current(float Id_des, float Iq_des, float I_phase, float pwm_pha
         int axis_num = axis_->axis_num_;
         if (axis_num == 0 && oscilloscope_force_trigger_) {
             if (oscilloscope_pos[0] == 0) {
-                oscilloscope_pos[0] = 1;
-                oscilloscope_pos[1] = 1;
+                for (int i = 0; i < OSCILLOSCOPE_NUM_AXES; i++) {
+                    oscilloscope_pos[i] = 1;
+                }
                 oscilloscope_counter_ = ((int64_t)1<<62) | (int64_t)axis_->loop_counter_;
             }
             oscilloscope_force_trigger_ = false;
         }
-        if (oscilloscope_pos[axis_num] && axis_num < OSCILLOSCOPE_NUM_AXES) {
+        if (axis_num < OSCILLOSCOPE_NUM_AXES && oscilloscope_pos[axis_num]) {
 
+            //add_oscilloscope(axis_num, axis_num == 0 ? odrv.side_angle_ : side_angle_d_);
             //add_oscilloscope(axis_num, axis_->loop_counter_);
             add_oscilloscope(axis_num, axis_->encoder_.pos_estimate_);
-            add_oscilloscope(axis_num, Iq_des);
-            //add_oscilloscope(axis_num, ictrl.Iq_measured);
-            add_oscilloscope(axis_num, axis_->controller_.pos_setpoint_);
+            add_oscilloscope(axis_num, Iq_des * config_.direction);
+            //add_oscilloscope(axis_num, ictrl.Iq_measured * config_.direction);
+            //add_oscilloscope(axis_num, axis_->controller_.pos_setpoint_);
+            add_oscilloscope(axis_num, axis_->encoder_.vel_estimate_);
+            //add_oscilloscope(axis_num, axis_->controller_.vel_integrator_torque_);
+			if (axis_->controller_.enable_landing_mode_)
+                add_oscilloscope(axis_num, axis_num == 0 ? -axis_->controller_.l_vel_target_ : axis_->controller_.l_vel_target_);
+            else
+                add_oscilloscope(axis_num, axis_->controller_.vel_setpoint_);
+			/*if (axis_num == 0)
+	            add_oscilloscope(axis_num, odrv.side_angle_motor_);
+            else
+	            add_oscilloscope(axis_num, odrv.side_angle_motor_d_);*/
+			/*if (axis_num == 0)
+	            add_oscilloscope(axis_num, odrv.side_angle_motor_target_);
+            else
+	            add_oscilloscope(axis_num, odrv.side_angle_motor_target_d_);*/
+			/*if (axis_num == 0)
+	            add_oscilloscope(axis_num, odrv.side_angle_motor_force_);
+            else
+	            add_oscilloscope(axis_num, odrv.average_leg_pos_force_);*/
+            /*if (axis_num == 0)
+	            add_oscilloscope(axis_num, odrv.acc_r_);
+            else
+	            add_oscilloscope(axis_num, odrv.acc_l_);*/
+            add_oscilloscope(axis_num, axis_->controller_.l_frame_counter_*0.1f);
 
             if (oscilloscope_pos[axis_num] >= OSCILLOSCOPE_SIZE+1) {
                 oscilloscope_pos[axis_num] = 0;
@@ -462,98 +502,112 @@ bool Motor::FOC_current(float Id_des, float Iq_des, float I_phase, float pwm_pha
         }
     }
 
-    if (current_threshold_mode_ != 0) {
-        if ((current_threshold_mode_ == 1 && Iq_des > current_threshold_) || 
-            (current_threshold_mode_ == 2 && Iq_des < current_threshold_)) {
-            for (Axis* ax : axes) {
-                ax->motor_.current_threshold_mode_ = -1;
-                ax->motor_.activated_landing_ = true;
-            }
+    if (trigger_jump_timer_ != 0) {
+        trigger_jump_timer_--;
+        if (trigger_jump_timer_ == 0) {
+            axis_->controller_.config_.input_mode = Controller::INPUT_MODE_PASSTHROUGH;
+            axis_->controller_.input_pos_                  = jump_pos_target_;
+            axis_->controller_.input_pos_updated_          = true;
+            axis_->controller_.config_.vel_gain            = j_vel_gain_;
+            axis_->controller_.config_.pos_gain            = j_pos_gain_;
+            axis_->controller_.config_.vel_integrator_gain = j_vel_integrator_gain_;
+            axis_->controller_.config_.vel_limit           = j_vel_limit_;
+            config_.current_lim_margin                     = j_current_lim_margin_;
+            config_.current_lim                            = j_current_lim_;
         }
     }
-    if (current_threshold_mode_ == -1) {
-        current_threshold_mode_ = 0;
 
-        float abs_pos0 = -(axes[0]->encoder_.pos_estimate_ + axes[0]->motor_.l_base_angle_);
-        float abs_pos1 =   axes[1]->encoder_.pos_estimate_ + axes[1]->motor_.l_base_angle_;
-        float abs_target = std::min((abs_pos0+abs_pos1)*0.5f + l_pos_zero_delta_, l_pos_zero_max_);
-        //axis_->controller_.config_.control_mode = Controller::CONTROL_MODE_TORQUE_CONTROL;
-        axis_->controller_.config_.input_mode = Controller::INPUT_MODE_PASSTHROUGH;
-        if (axis_->axis_num_ == 0)
-            axis_->controller_.input_pos_              = -abs_target - l_base_angle_;
-        else
-            axis_->controller_.input_pos_              =  abs_target - l_base_angle_;
-
-        axis_->controller_.input_pos_updated_          = true;
-        axis_->controller_.config_.vel_gain            = l_vel_gain_;
-        axis_->controller_.config_.pos_gain            = l_pos_gain_;
-        axis_->controller_.config_.vel_integrator_gain = l_vel_integrator_gain_;
-        axis_->controller_.config_.vel_limit           = l_vel_limit_*5.0f;
-        axis_->trap_traj_ .config_.vel_limit           = l_vel_limit_;
-        axis_->controller_.config_.enable_pos_err_sync = true;
+    if (trigger_falling_) {
+        trigger_falling_ = false;
+        axis_->controller_.config_.input_mode               = (Controller::InputMode)f_input_mode_;
+        axis_->controller_.config_.vel_gain                 = f_vel_gain_;
+        axis_->controller_.config_.pos_gain                 = f_pos_gain_;
+        axis_->controller_.config_.vel_integrator_gain      = f_vel_integrator_gain_;
+        axis_->controller_.config_.vel_limit                = f_vel_limit_;
+		axis_->controller_.config_.set_input_filter_bandwidth(f_input_filter_bandwidth_);
+        config_.current_lim                                 = f_current_lim_;
+        // We do not set current_lim_margin back to normal here yet.
+        // We do this at the end of landing.
     }
 
-    if (trigger_jump_) {
-        trigger_jump_ = false;
-        axis_->controller_.config_.input_mode = Controller::INPUT_MODE_PASSTHROUGH;
-        axis_->controller_.input_pos_                  = jump_pos_target_;
-        axis_->controller_.input_pos_updated_          = true;
-        axis_->controller_.config_.vel_gain            = j_vel_gain_;
-        axis_->controller_.config_.pos_gain            = j_pos_gain_;
-        axis_->controller_.config_.vel_integrator_gain = j_vel_integrator_gain_;
-        axis_->controller_.config_.vel_limit           = j_vel_limit_*5.0f;
-        axis_->trap_traj_ .config_.vel_limit           = j_vel_limit_;
-        config_.current_lim_margin                     = j_current_lim_margin_;
-        config_.current_lim                            = j_current_lim_;
+    if (axis_->controller_.enable_landing_detector_) {
+        float current_target = (axis_->axis_num_ == 0 ? -Iq_des : Iq_des) * config_.direction;
+        if (current_target < odrv.landing_detector_current_threshold_) {
+            axis_->controller_.enable_landing_detector_ = false;
+            axis_->controller_.l_frame_counter_ = 0;
+            axis_->controller_.enable_landing_mode_ = true;
+            axis_->controller_.l_initial_vel_ = (axis_->axis_num_ == 0 ? -axis_->encoder_.vel_estimate_ : axis_->encoder_.vel_estimate_);
+            axis_->controller_.l_vel_integrator_ = 0;
+            odrv.activated_landing_ = true;
+            odrv.enable_landing_mode_ = true;
+
+            float leg_pos_target = odrv.l_leg_pos_target_;
+
+            // If we are the second leg to touch down with the ground,
+            // we want to lower our target position a bit.
+            Axis* other_axis = axes[!axis_->axis_num_];
+            if (other_axis->controller_.enable_landing_mode_) {
+                float leg_pos;
+	            if (axis_->axis_num_ == 1)
+                    leg_pos =  (axis_->encoder_.pos_estimate_+axis_->motor_.leg_base_angle_);
+                else
+                    leg_pos = -(axis_->encoder_.pos_estimate_+axis_->motor_.leg_base_angle_);
+                float min_leg_pos_target = leg_pos*0.3f + leg_pos_target*0.7f;
+                int32_t other_frame_counter = other_axis->controller_.l_frame_counter_;
+                leg_pos_target -= other_frame_counter * odrv.l_pos_target_delta_per_frame_;
+                leg_pos_target = std::max(leg_pos_target, min_leg_pos_target);
+            }
+
+            // We use pos_setpoint_ in landing mode as target.
+            // Note: We cannot use input_pos_, it is set by the robot during falling,
+            // and the robot loop is so slow that commands may reach us when the robot
+            // still thinks we are in falling phase.
+            if (axis_->axis_num_ == 0)
+                axis_->controller_.pos_setpoint_ = -leg_pos_target - leg_base_angle_;
+            else
+                axis_->controller_.pos_setpoint_ =  leg_pos_target - leg_base_angle_;
+        }
     }
+
     if (trigger_stop_landing_) {
         trigger_stop_landing_ = false;
+
+        if (axis_->axis_num_ == 0)
+            axis_->controller_.input_pos_ = -odrv.l_leg_pos_target_ - leg_base_angle_;
+        else
+            axis_->controller_.input_pos_ =  odrv.l_leg_pos_target_ - leg_base_angle_;
+        axis_->controller_.pos_setpoint_ = axis_->encoder_.pos_estimate_;
+        axis_->controller_.vel_setpoint_ = 0.0f;
+        axis_->controller_.torque_setpoint_ = 0.0f;
+
         axis_->controller_.config_.input_mode          = (Controller::InputMode)sl_input_mode_;
-        axis_->controller_.config_.enable_pos_err_sync = false;
         axis_->controller_.config_.vel_gain            = sl_vel_gain_;
         axis_->controller_.config_.pos_gain            = sl_pos_gain_;
         axis_->controller_.config_.vel_integrator_gain = sl_vel_integrator_gain_;
-        axis_->controller_.config_.vel_limit           = sl_vel_limit_*5.0f;
-        axis_->trap_traj_ .config_.vel_limit           = sl_vel_limit_;
+        axis_->controller_.config_.vel_limit           = sl_vel_limit_;
+        if (axis_->axis_num_ == 0)
+            axis_->controller_.vel_integrator_torque_  = -sl_initial_integrator_;
+        else
+            axis_->controller_.vel_integrator_torque_  =  sl_initial_integrator_;
         config_.current_lim_margin                     = sl_current_lim_margin_;
         config_.current_lim                            = sl_current_lim_;
-    }
 
-    if (axis_->axis_num_ == 0 && odrv.enable_side_balance_) {
-		// Calculate side_balance: the position difference between both legs.
-		// It is calculated such that two variables are close to zero:
-		// - The side angle imu value.
-		// - The force difference of both leg motors.
+        // Reset landing mode variables for next jump
+        for (int i = 0; i < OSCILLOSCOPE_NUM_AXES; i++) {
+            axes[i]->controller_.enable_landing_detector_ = false;
+            axes[i]->controller_.enable_landing_mode_ = false;
+            axes[i]->controller_.l_max_vel_ = 0;
+            axes[i]->controller_.l_vel_target_delta_ = 0;
+            axes[i]->controller_.l_vel_target_ = 0;
+            //axes[i]->controller_.l_frame_counter_ = 0;
+        }
 
-    	const float stand_control_min_leg_angle = -0.4f, stand_control_max_leg_angle = 0.97f;
-
-		float delta = 0;
-		delta += odrv.side_angle_factored_;
-        float current0 = axes[0]->motor_.current_control_.Iq_setpoint;
-        //float current0 = Iq_des;
-        float current1 = axes[1]->motor_.current_control_.Iq_setpoint;
-		delta += (-current0 - current1) * odrv.side_balance_current_factor_;
-
-		float& side_balance = odrv.side_balance_;
-		side_balance += delta * (1.0f / 8000.0f);
-		if (side_balance > 0) {
-			side_balance = std::clamp(side_balance,
-                                 stand_control_min_leg_angle-odrv.stand_control_angle_,
-                                 stand_control_max_leg_angle-odrv.stand_control_angle_);
-			axes[0]->controller_.input_pos_ = odrv.stand_control_angle_+side_balance;
-			axes[1]->controller_.input_pos_ = odrv.stand_control_angle_;
-			set_abs_input_pos0(odrv.stand_control_angle_+side_balance);
-			set_abs_input_pos1(odrv.stand_control_angle_);
-		} else {
-			side_balance = std::clamp(side_balance,
-                                 odrv.stand_control_angle_-stand_control_max_leg_angle,
-                                 odrv.stand_control_angle_-stand_control_min_leg_angle);
-			set_abs_input_pos0(odrv.stand_control_angle_);
-			set_abs_input_pos1(odrv.stand_control_angle_-side_balance);
-		}
-	}
-    if (axis_->axis_num_ == 0 && !odrv.enable_side_balance_) {
-		odrv.side_balance_ = 0;
+        /*extern int debug1;
+        extern int debug2;
+        if (axis_->axis_num_ == 0)
+            debug1++;
+        else
+            debug2++;*/
     }
     return true;
 }

@@ -65,7 +65,7 @@ static void uart_server_thread(void * ctx) {
     (void) ctx;
 
     for (;;) {
-        debug1++;
+        //debug1++;
         // Check for UART errors and restart receive DMA transfer if required
         if (huart4.RxState != HAL_UART_STATE_BUSY_RX) {
             HAL_UART_AbortReceive(&huart4);
@@ -124,9 +124,9 @@ void start_uart_server() {
 }
 
 void uart_poll() {
-    debug2++;
+    //debug2++;
     if (uart_thread) {
-        debug3++;
+        //debug3++;
         osThreadResume(uart_thread);
     }
 }

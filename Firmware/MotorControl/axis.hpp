@@ -69,6 +69,7 @@ public:
 
     enum thread_signals {
         M_SIGNAL_PH_CURRENT_MEAS = 1u << 0
+        //M_SIGNAL_TORQUE_TARGET_DONE_AXIS_0 = 1u << 1
     };
 
     Axis(int axis_num,
@@ -179,6 +180,10 @@ public:
                 error_ |= ERROR_CURRENT_MEASUREMENT_TIMEOUT;
                 break;
             }
+            //if (axis_num_ == 0) {
+            //    // The signal should be clear now, but just to be sure we clear it here.
+			//    osSignalClear(axes[1]->thread_id_, M_SIGNAL_TORQUE_TARGET_DONE_AXIS_0);
+            //}
 
             if (!main_continue)
                 break;

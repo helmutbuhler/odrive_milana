@@ -164,19 +164,7 @@ public:
     bool oscilloscope_force_trigger_ = false;
     int64_t oscilloscope_counter_ = 0;
 
-    float current_threshold_ = 0;
-    int32_t current_threshold_mode_ = 0; // 0: disabled, 1: trigger if above, 2: trigger if below
-    bool activated_landing_ = false;
-
-    float l_pos_zero_delta_ = 0;
-    float l_pos_zero_max_ = 0;
-    float l_base_angle_ = 0;
-    float l_vel_gain_ = 0;
-    float l_pos_gain_ = 0;
-    float l_vel_integrator_gain_ = 0;
-    float l_vel_limit_ = 0;
-
-    bool  trigger_jump_ = false;
+    int32_t trigger_jump_timer_ = 0;
     float jump_pos_target_ = 0;
     float j_vel_gain_ = 0;
     float j_pos_gain_ = 0;
@@ -185,12 +173,24 @@ public:
     float j_current_lim_margin_ = 0;
     float j_current_lim_ = 0;
 
-    bool  trigger_stop_landing_ = false;
+    bool  trigger_falling_ = false;
+    int32_t f_input_mode_ = 0;
+    float f_vel_gain_ = 0;
+    float f_pos_gain_ = 0;
+    float f_vel_integrator_gain_ = 0;
+    float f_vel_limit_ = 0;
+    float f_input_filter_bandwidth_ = 0;
+    float f_current_lim_ = 0;
+
+    float leg_base_angle_ = 0;
+
+    bool trigger_stop_landing_ = false;
     int32_t sl_input_mode_ = 0;
     float sl_vel_gain_ = 0;
     float sl_pos_gain_ = 0;
     float sl_vel_integrator_gain_ = 0;
     float sl_vel_limit_ = 0;
+    float sl_initial_integrator_ = 0;
     float sl_current_lim_margin_ = 0;
     float sl_current_lim_ = 0;
 };

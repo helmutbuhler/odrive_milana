@@ -188,13 +188,70 @@ interfaces:
       axis1: {type: Axis, c_name: get_axis(1)}
       can: {type: Can, c_name: get_can()}
       test_property: uint32
+
       any_errors_and_watchdog_feed: {type: readonly bool, c_getter: get_any_errors_and_watchdog_feed()}
+
       trigger_jump: {type: bool, c_setter: set_trigger_jump}
+      jump_left_right_timeout: int32
+
+      enable_landing_detector: {type: bool, c_setter: set_enable_landing_detector}
+      enable_landing_mode: bool
+      activated_landing: bool
+      landing_detector_current_threshold: float32
+      l_leg_pos_target: float32
+      l_base_angle: float32
+      l_max_time: float32
+      l_vel_gain: float32
+      l_vel_integrator_gain: float32
+      l_sync_gain_pos: float32
+      l_sync_gain_vel: float32
+      l_initial_measure_time_frames: int32
+      l_initial_measure_current: float32
+      l_do_max_vel: bool
+      l_do_straightening: bool
+      l_initial_expected_accel_per_frame: float32
+      l_initial_accel_gain: float32
+      l_pos_target_delta_per_frame: float32
+
       enable_side_balance: bool
-      stand_control_angle: float32
-      side_angle_factored: float32
-      side_balance_current_factor: float32
-      side_balance: float32
+
+      x_angle_hip_angle_l: float32
+      x_angle_hip_angle_r: float32
+
+      side_angle: {type: float32, c_setter: set_side_angle}
+      #side_angle_d: float32
+
+      side_gain_p: float32
+      side_gain_d: float32
+      average_gain_p: float32
+      average_gain_i: float32
+      average_gain_d: float32
+      target_gain_p: float32
+      target_gain_d: float32
+      side_balance_mode: {type: uint32, c_setter: set_side_balance_mode}
+
+      side_angle_motor_force_limit: float32
+      side_angle_target: float32
+      average_leg_pos_target: float32
+      average_leg_pos_integrator: float32
+      
+      side_angle_motor_target: float32
+      side_angle_motor_target_d: float32
+
+      #stand_control_max_leg_angle: float32
+      #wheel_side_distance: float32
+
+      side_balance_down_limit_factor: float32
+      side_balance_down_limit_threshold: float32
+      side_balance_max_vertical_angle_gain: float32
+      side_balance_max_vertical_angle: float32
+      
+      #acc_smooth_factor: float32
+      acc_current_gain: float32
+      side_balance_error_d_smooth_factor: float32
+      #acc_r: float32
+      #acc_l: float32
+
       debug1: {type: readonly int32, c_getter: get_debug1()}
       debug2: {type: readonly int32, c_getter: get_debug2()}
       debug3: {type: readonly int32, c_getter: get_debug3()}
@@ -202,6 +259,7 @@ interfaces:
     functions:
       test_function: {in: {delta: int32}, out: {cnt: int32}}
       get_oscilloscope_val: {in: {index: uint32}, out: {val: float32}}
+      get_oscilloscope_val_4: {in: {index: uint32}, out: {val: uint64}}
       get_adc_voltage: {in: {gpio: uint32}, out: {voltage: float32}}
       save_configuration:
       erase_configuration:
@@ -543,19 +601,6 @@ interfaces:
       oscilloscope_force_trigger: bool
       oscilloscope_counter: int64
       
-      current_threshold: float32
-      current_threshold_mode: int32
-      activated_landing: bool
-
-      l_pos_zero_delta: float32
-      l_pos_zero_max: float32
-      l_base_angle: float32
-      l_vel_gain: float32
-      l_pos_gain: float32
-      l_vel_integrator_gain: float32
-      l_vel_limit: float32
-
-      trigger_jump: bool
       jump_pos_target: float32
       j_vel_gain: float32
       j_pos_gain: float32
@@ -564,12 +609,24 @@ interfaces:
       j_current_lim_margin: float32
       j_current_lim: float32
 
+      trigger_falling: bool
+      f_input_mode: int32
+      f_vel_gain: float32
+      f_pos_gain: float32
+      f_vel_integrator_gain: float32
+      f_vel_limit: float32
+      f_input_filter_bandwidth: float32
+      f_current_lim: float32
+
+      leg_base_angle: float32
+
       trigger_stop_landing: bool
       sl_input_mode: int32
       sl_vel_gain: float32
       sl_pos_gain: float32
       sl_vel_integrator_gain: float32
       sl_vel_limit: float32
+      sl_initial_integrator: float32
       sl_current_lim_margin: float32
       sl_current_lim: float32
 
@@ -695,6 +752,14 @@ interfaces:
       trajectory_done: readonly bool
       vel_integrator_torque: float32
       anticogging_valid: bool
+
+      enable_landing_detector: bool
+      enable_landing_mode: bool
+      l_max_vel: float32
+      l_vel_target_delta: float32
+      l_vel_target: float32
+      l_frame_counter: int32
+
       config:
         c_is_class: False
         attributes:
@@ -758,8 +823,6 @@ interfaces:
               calib_vel_threshold: float32
               cogging_ratio: readonly float32
               anticogging_enabled: bool
-          enable_pos_err_sync: bool
-          pos_err_sync_gain: float32
     functions:
       move_incremental:
         doc: Moves the axes' goal point by a specified increment.
@@ -771,6 +834,7 @@ interfaces:
             usually corresponds roughly to the current position of the axis.'
           }
       start_anticogging_calibration:
+      get_anticogging_map: {in: {index: int32}, out: {val: float32}}
 
 
   ODrive.Encoder:
@@ -823,7 +887,10 @@ interfaces:
       pos_abs: int32
       spi_error_rate: readonly float32
       spi_abs_ams_error_flag: readonly bool
-      extra_incremental_counter: readonly uint32
+      extra_incremental_counter: readonly int16
+      extra_incremental_counter_index_error: readonly int16
+      extra_incremental_counter_index_count: readonly uint32
+      do_extra_incremental_counter_index: {type: bool, c_setter: set_do_extra_incremental_counter_index}
       config:
         c_is_class: False
         attributes:

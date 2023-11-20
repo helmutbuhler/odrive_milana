@@ -20,6 +20,9 @@ Encoder::Encoder(const EncoderHardwareConfig_t& hw_config,
 static void enc_index_cb_wrapper(void* ctx) {
     reinterpret_cast<Encoder*>(ctx)->enc_index_cb();
 }
+static void extra_incremental_counter_index_cb_wrapper(void* ctx) {
+    reinterpret_cast<Encoder*>(ctx)->extra_incremental_counter_index_cb();
+}
 
 void Encoder::setup() {
     HAL_TIM_Encoder_Start(hw_config_.timer, TIM_CHANNEL_ALL);
@@ -317,7 +320,7 @@ void Encoder::sample_now() {
             // Do nothing
 
             // BalanceBot:
-            extra_incremental_counter_ = hw_config_.timer->Instance->CNT;
+            extra_incremental_counter_ = (int16_t)hw_config_.timer->Instance->CNT;
         } break;
 
         default: {
@@ -582,4 +585,37 @@ bool Encoder::update() {
     vel_estimate_valid_ = true;
     pos_estimate_valid_ = true;
     return true;
+}
+
+// Triggered when an encoder passes over the "Index" pin
+void Encoder::extra_incremental_counter_index_cb() {
+    if (!do_extra_incremental_counter_index_) {
+        // This shouldn't happen, but just in case...
+        GPIO_unsubscribe(hw_config_.index_port, hw_config_.index_pin);
+        return;
+    }
+
+    // Disable interrupts to make a critical section to avoid race condition
+    uint32_t prim = cpu_enter_critical();
+
+    extra_incremental_counter_index_error_ += (int16_t)hw_config_.timer->Instance->CNT;
+    extra_incremental_counter_ = 0;
+    hw_config_.timer->Instance->CNT = 0;
+    extra_incremental_counter_index_count_ += 1;
+
+    cpu_exit_critical(prim);
+}
+
+void Encoder::set_do_extra_incremental_counter_index(bool set) {
+    do_extra_incremental_counter_index_ = set;
+    if (do_extra_incremental_counter_index_) {
+        if (config_.use_index) {
+            set_error(ERROR_UNSUPPORTED_ENCODER_MODE);
+        } else {
+            GPIO_subscribe(hw_config_.index_port, hw_config_.index_pin, GPIO_PULLDOWN,
+                    extra_incremental_counter_index_cb_wrapper, this);
+        }
+    } else if (!config_.use_index || config_.find_idx_on_lockin_only) {
+        GPIO_unsubscribe(hw_config_.index_port, hw_config_.index_pin);
+    }
 }

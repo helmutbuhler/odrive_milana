@@ -202,11 +202,14 @@ inline float float_to_half(float x) {
 }
 #endif
 // if you use the oscilloscope feature you can bump up this value
-//#define OSCILLOSCOPE_SIZE 4096
-#define OSCILLOSCOPE_SIZE 18000
-#define OSCILLOSCOPE_NUM_AXES 2
+//const int OSCILLOSCOPE_SIZE = 4096;
+const int OSCILLOSCOPE_SIZE = 18000;
+const int OSCILLOSCOPE_NUM_AXES = 2;
 extern oscilloscope_type oscilloscope[OSCILLOSCOPE_NUM_AXES][OSCILLOSCOPE_SIZE];
 extern size_t oscilloscope_pos[OSCILLOSCOPE_NUM_AXES];
+
+extern float side_angle_motor_force_limit_current;
+extern float side_angle_d_;
 
 // TODO: move
 // this is technically not thread-safe but practically it might be
@@ -274,6 +277,16 @@ public:
     float get_oscilloscope_val(uint32_t index) override {
         return half_to_float(oscilloscope[index%OSCILLOSCOPE_NUM_AXES][index/OSCILLOSCOPE_NUM_AXES]);
     }
+    uint64_t get_oscilloscope_val_4(uint32_t index) override {
+        // return 4 values, packed into a 64bit integer, at once.
+        uint64_t r = 0;
+        for (int i = 0; i < 4; i++) {
+            if (index < OSCILLOSCOPE_NUM_AXES*OSCILLOSCOPE_SIZE)
+                r |= (uint64_t)oscilloscope[index%OSCILLOSCOPE_NUM_AXES][index/OSCILLOSCOPE_NUM_AXES] << (i*16);
+            index++;
+        }
+        return r;
+    }
     const uint32_t oscilloscope_size_ = OSCILLOSCOPE_SIZE*OSCILLOSCOPE_NUM_AXES;
 
     float get_adc_voltage(uint32_t gpio) override {
@@ -334,14 +347,78 @@ public:
 
     bool get_any_errors_and_watchdog_feed();
 
+    // Jumping:
     void set_trigger_jump(bool value);
     bool trigger_jump_ = false; // dummy
+    int32_t jump_left_right_timeout_ = 0; // delay jump on one leg in no. of odrive frames. Sign decides which leg.
 
+    // Landing Mode:
+    void set_enable_landing_detector(bool value);
+    bool enable_landing_detector_ = false; // dummy
+    bool enable_landing_mode_ = false; // This is to notify the robot.
+    bool activated_landing_ = false; // This is to notify the robot. enable_landing_mode_ might turn on and off too quickly.
+    float landing_detector_current_threshold_ = 0; // threshold for triggering landing mode
+    float l_leg_pos_target_ = 0;
+    float l_base_angle_ = 0;
+    float l_max_time_ = 0;
+    float l_vel_gain_ = 0;
+    float l_vel_integrator_gain_ = 0;
+    float l_sync_gain_pos_ = 0;
+    float l_sync_gain_vel_ = 0;
+    int32_t l_initial_measure_time_frames_ = 0;
+    float l_initial_measure_current_ = 0;
+    bool l_do_max_vel_ = false;
+    bool l_do_straightening_ = false;
+    float l_initial_expected_accel_per_frame_ = 0;
+    float l_initial_accel_gain_ = 0;
+    float l_pos_target_delta_per_frame_ = 0;
+
+    // Side Balancing:
     bool enable_side_balance_ = false;
-    float stand_control_angle_ = 0;
-    float side_angle_factored_ = 0;
-    float side_balance_current_factor_ = 0;
-    float side_balance_ = 0;
+
+	float x_angle_hip_angle_l_ = 0;
+	float x_angle_hip_angle_r_ = 0;
+
+    float side_angle_ = 0;
+    uint32_t last_side_angle_counter_ = 0;
+    void set_side_angle(float value);
+	
+	float side_gain_p_ = 0;
+	float side_gain_d_ = 0;
+	float average_gain_p_ = 0;
+	float average_gain_i_ = 0;
+	float average_gain_d_ = 0;
+	float target_gain_p_ = 0;
+	float target_gain_d_ = 0;
+    uint32_t side_balance_mode_ = 0;
+    void set_side_balance_mode(uint32_t value);
+
+	float side_angle_motor_force_limit_ = 0;
+	float side_angle_target_ = 0;
+
+	float average_leg_pos_target_ = 0;
+	float average_leg_pos_integrator_ = 0;
+
+	float side_angle_motor_target_ = 0;
+	float side_angle_motor_target_d_ = 0;
+
+	//float stand_control_max_leg_angle_ = 0;
+    //float wheel_side_distance_ = 0;
+
+    float side_balance_down_limit_factor_ = 0;
+    float side_balance_down_limit_threshold_ = 0;
+
+    float side_balance_max_vertical_angle_ = 0;
+    float side_balance_max_vertical_angle_gain_ = 0;
+
+    //float acc_smooth_factor_ = 1;
+    float acc_current_gain_ = 0;
+    float side_balance_error_d_smooth_factor_ = 0;
+    //float acc_r_ = 0;
+    //float acc_l_ = 0;
+
+    //float side_angle_motor_force_ = 0;
+    //float average_leg_pos_force_ = 0;
 
     int get_debug1() {
         extern int debug1;
