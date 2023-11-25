@@ -653,11 +653,11 @@ void update_brake_current() {
 
     ibus_ += odrv.ibus_report_filter_k_ * (Ibus_sum - ibus_);
 
-    if (Ibus_sum > odrv.config_.dc_max_positive_current) {
+    if ((odrv.generate_error_on_filtered_ibus_ ? ibus_ : Ibus_sum) > odrv.config_.dc_max_positive_current) {
         low_level_fault(Motor::ERROR_DC_BUS_OVER_CURRENT);
         return;
     }
-    if (Ibus_sum < odrv.config_.dc_max_negative_current) {
+    if ((odrv.generate_error_on_filtered_ibus_ ? ibus_ : Ibus_sum) < odrv.config_.dc_max_negative_current) {
         low_level_fault(Motor::ERROR_DC_BUS_OVER_REGEN_CURRENT);
         return;
     }

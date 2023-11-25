@@ -32,8 +32,16 @@ interfaces:
           type: float32
           doc: |
             Filter gain for the reported `ibus`. Set to a value below 1.0 to get a smoother
-            line when plotting `ibus`. Set to 1.0 to disable. This filter is only applied to
-            the reported value and not for internal calculations.
+            line when plotting `ibus`. Set to 1.0 to disable. This filter is applied to
+            the reported value and only applies for internal calculations if the flag below is set
+            to true.
+      generate_error_on_filtered_ibus:
+          type: bool
+          doc: |
+            Set to true if you want the errors for DC_BUS_OVER_CURRENT and
+            DC_BUS_OVER_REGEN_CURRENT be dependant on the smooth value. This can be useful if
+            your power source can handle burst currents like lipo batteries.
+            If you use AC/DC power, keep this set to false.
       serial_number: readonly uint64
       hw_version_major: readonly uint8
       hw_version_minor: readonly uint8
@@ -887,10 +895,12 @@ interfaces:
       pos_abs: int32
       spi_error_rate: readonly float32
       spi_abs_ams_error_flag: readonly bool
+      index_searching: readonly bool
+      index_check_cumulative_error: readonly int16
+      index_check_index_count: readonly uint32
+      enable_extra_incremental_counter: {type: bool, c_setter: set_enable_extra_incremental_counter}
+      enable_extra_incremental_counter_index: bool
       extra_incremental_counter: readonly int16
-      extra_incremental_counter_index_error: readonly int16
-      extra_incremental_counter_index_count: readonly uint32
-      do_extra_incremental_counter_index: {type: bool, c_setter: set_do_extra_incremental_counter_index}
       config:
         c_is_class: False
         attributes:

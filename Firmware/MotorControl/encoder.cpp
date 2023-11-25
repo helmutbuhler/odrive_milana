@@ -20,9 +20,6 @@ Encoder::Encoder(const EncoderHardwareConfig_t& hw_config,
 static void enc_index_cb_wrapper(void* ctx) {
     reinterpret_cast<Encoder*>(ctx)->enc_index_cb();
 }
-static void extra_incremental_counter_index_cb_wrapper(void* ctx) {
-    reinterpret_cast<Encoder*>(ctx)->extra_incremental_counter_index_cb();
-}
 
 void Encoder::setup() {
     HAL_TIM_Encoder_Start(hw_config_.timer, TIM_CHANNEL_ALL);
@@ -57,7 +54,20 @@ bool Encoder::do_checks(){
 // TODO: only arm index edge interrupt when we know encoder has powered up
 // (maybe by attaching the interrupt on start search, synergistic with following)
 void Encoder::enc_index_cb() {
-    if (config_.use_index) {
+
+    {
+        // Update index_check fields
+        uint32_t prim = cpu_enter_critical();
+        int16_t current_count = (int16_t)hw_config_.timer->Instance->CNT;
+        cpu_exit_critical(prim);
+        current_count = mod(current_count, config_.cpr);
+        
+        index_check_cumulative_error_ += current_count-index_check_last_counter_on_index_;
+        index_check_last_counter_on_index_ = current_count;
+        index_check_index_count_ += 1;
+    }
+
+    if (config_.use_index && index_searching_) {
         set_circular_count(0, false);
         if (config_.zero_count_on_find_idx)
             set_linear_count(0); // Avoid position control transient after search
@@ -74,18 +84,29 @@ void Encoder::enc_index_cb() {
         }
         index_found_ = true;
     }
+    index_searching_ = false;
 
-    // Disable interrupt
-    GPIO_unsubscribe(hw_config_.index_port, hw_config_.index_pin);
+    if (enable_extra_incremental_counter_index_) {
+        extra_incremental_counter_ = 0;
+        set_linear_count(0);
+    }
+
+    bool should_subscribe = config_.use_index || enable_extra_incremental_counter_;
+    if (!should_subscribe) {
+        GPIO_unsubscribe(hw_config_.index_port, hw_config_.index_pin);
+    }
 }
 
 void Encoder::set_idx_subscribe(bool override_enable) {
-    if (config_.use_index && (override_enable || !config_.find_idx_on_lockin_only)) {
+    bool should_subscribe = config_.use_index || enable_extra_incremental_counter_;
+    if (should_subscribe) {
         GPIO_subscribe(hw_config_.index_port, hw_config_.index_pin, GPIO_PULLDOWN,
                 enc_index_cb_wrapper, this);
-    } else if (!config_.use_index || config_.find_idx_on_lockin_only) {
+    } else {
         GPIO_unsubscribe(hw_config_.index_port, hw_config_.index_pin);
     }
+
+    index_searching_ = config_.use_index && (override_enable || !config_.find_idx_on_lockin_only);
 }
 
 void Encoder::update_pll_gains() {
@@ -113,6 +134,7 @@ void Encoder::set_linear_count(int32_t count) {
 
     // Update states
     shadow_count_ = count;
+    index_check_last_counter_on_index_ = count;
     pos_estimate_counts_ = (float)count;
     tim_cnt_sample_ = count;
 
@@ -320,7 +342,9 @@ void Encoder::sample_now() {
             // Do nothing
 
             // BalanceBot:
-            extra_incremental_counter_ = (int16_t)hw_config_.timer->Instance->CNT;
+            if (enable_extra_incremental_counter_) {
+                extra_incremental_counter_ = (int16_t)hw_config_.timer->Instance->CNT;
+            }
         } break;
 
         default: {
@@ -587,35 +611,10 @@ bool Encoder::update() {
     return true;
 }
 
-// Triggered when an encoder passes over the "Index" pin
-void Encoder::extra_incremental_counter_index_cb() {
-    if (!do_extra_incremental_counter_index_) {
-        // This shouldn't happen, but just in case...
-        GPIO_unsubscribe(hw_config_.index_port, hw_config_.index_pin);
-        return;
+void Encoder::set_enable_extra_incremental_counter(bool set) {
+    enable_extra_incremental_counter_ = set;
+    if (enable_extra_incremental_counter_ && config_.use_index) {
+        set_error(ERROR_UNSUPPORTED_ENCODER_MODE);
     }
-
-    // Disable interrupts to make a critical section to avoid race condition
-    uint32_t prim = cpu_enter_critical();
-
-    extra_incremental_counter_index_error_ += (int16_t)hw_config_.timer->Instance->CNT;
-    extra_incremental_counter_ = 0;
-    hw_config_.timer->Instance->CNT = 0;
-    extra_incremental_counter_index_count_ += 1;
-
-    cpu_exit_critical(prim);
-}
-
-void Encoder::set_do_extra_incremental_counter_index(bool set) {
-    do_extra_incremental_counter_index_ = set;
-    if (do_extra_incremental_counter_index_) {
-        if (config_.use_index) {
-            set_error(ERROR_UNSUPPORTED_ENCODER_MODE);
-        } else {
-            GPIO_subscribe(hw_config_.index_port, hw_config_.index_pin, GPIO_PULLDOWN,
-                    extra_incremental_counter_index_cb_wrapper, this);
-        }
-    } else if (!config_.use_index || config_.find_idx_on_lockin_only) {
-        GPIO_unsubscribe(hw_config_.index_port, hw_config_.index_pin);
-    }
+    set_idx_subscribe();
 }

@@ -117,13 +117,17 @@ public:
     constexpr float getCoggingRatio(){
         return 1.0f / 3600.0f;
     }
+    
+    bool index_searching_ = false;
 
-    void set_do_extra_incremental_counter_index(bool set);
-    void extra_incremental_counter_index_cb();
+    int16_t  index_check_cumulative_error_ = 0;
+    int16_t  index_check_last_counter_on_index_ = 0;
+    uint32_t index_check_index_count_ = 0;
+
+    void set_enable_extra_incremental_counter(bool set);
+    bool enable_extra_incremental_counter_ = false;
+    bool enable_extra_incremental_counter_index_ = false;
     int16_t extra_incremental_counter_ = 0;
-    int16_t extra_incremental_counter_index_error_ = 0;
-    uint32_t extra_incremental_counter_index_count_ = 0;
-    bool do_extra_incremental_counter_index_ = false;
 };
 
 #endif // __ENCODER_HPP
