@@ -87,8 +87,11 @@ void Encoder::enc_index_cb() {
     index_searching_ = false;
 
     if (enable_extra_incremental_counter_index_) {
+        uint32_t prim = cpu_enter_critical();
         extra_incremental_counter_ = 0;
-        set_linear_count(0);
+        index_check_last_counter_on_index_ = 0;
+        hw_config_.timer->Instance->CNT = 0;
+        cpu_exit_critical(prim);
     }
 
     bool should_subscribe = config_.use_index || enable_extra_incremental_counter_;
