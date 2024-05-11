@@ -52,6 +52,7 @@ interfaces:
       fw_version_unreleased:
         type: readonly uint8
         doc: 0 for official releases, 1 otherwise
+      fw_version_milana: readonly bool
       brake_resistor_armed: readonly bool
       brake_resistor_saturated: bool
       oscilloscope_size: readonly uint32
