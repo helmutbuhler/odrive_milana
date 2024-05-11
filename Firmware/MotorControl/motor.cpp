@@ -463,6 +463,7 @@ bool Motor::FOC_current(float Id_des, float Iq_des, float I_phase, float pwm_pha
         }
         if (axis_num < OSCILLOSCOPE_NUM_AXES && oscilloscope_pos[axis_num]) {
 
+            // #osci
             //add_oscilloscope(axis_num, axis_num == 0 ? odrv.side_angle_ : side_angle_d_);
             //add_oscilloscope(axis_num, axis_->loop_counter_);
             add_oscilloscope(axis_num, axis_->encoder_.pos_estimate_);
@@ -471,10 +472,10 @@ bool Motor::FOC_current(float Id_des, float Iq_des, float I_phase, float pwm_pha
             //add_oscilloscope(axis_num, axis_->controller_.pos_setpoint_);
             add_oscilloscope(axis_num, axis_->encoder_.vel_estimate_);
             //add_oscilloscope(axis_num, axis_->controller_.vel_integrator_torque_);
-			if (axis_->controller_.enable_landing_mode_)
-                add_oscilloscope(axis_num, axis_num == 0 ? -axis_->controller_.l_vel_target_ : axis_->controller_.l_vel_target_);
-            else
-                add_oscilloscope(axis_num, axis_->controller_.vel_setpoint_);
+			//if (axis_->controller_.enable_landing_mode_)
+            //    add_oscilloscope(axis_num, axis_num == 0 ? -axis_->controller_.l_vel_target_ : axis_->controller_.l_vel_target_);
+            //else
+            add_oscilloscope(axis_num, axis_->controller_.vel_setpoint_);
 			/*if (axis_num == 0)
 	            add_oscilloscope(axis_num, odrv.side_angle_motor_);
             else
@@ -491,11 +492,13 @@ bool Motor::FOC_current(float Id_des, float Iq_des, float I_phase, float pwm_pha
 	            add_oscilloscope(axis_num, odrv.acc_r_);
             else
 	            add_oscilloscope(axis_num, odrv.acc_l_);*/
-            add_oscilloscope(axis_num, axis_->controller_.l_frame_counter_*0.1f);
+            //add_oscilloscope(axis_num, axis_->controller_.l_frame_counter_*0.1f);
 
             if (oscilloscope_pos[axis_num] >= OSCILLOSCOPE_SIZE+1) {
+				// Recording is done.
                 oscilloscope_pos[axis_num] = 0;
                 if (axis_num == 0) {
+					// Signal that recording is done.
                     oscilloscope_counter_ = ((int64_t)1<<61) | (int64_t)(axis_->loop_counter_+1);
                 }
             }
