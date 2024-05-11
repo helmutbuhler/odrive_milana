@@ -116,12 +116,7 @@ __CONFIG_USB_PROTOCOL__: Defines which protocol the ODrive should use on the USB
  
  **Note**: There is a second USB interface that is always a serial port.
 
-__CONFIG_UART_PROTOCOL__: Defines which protocol the ODrive should use on the UART interface (GPIO1 and GPIO2). Note that UART is only supported on ODrive v3.3 and higher.
- * `native`: The native ODrive protocol. Use this if you're connecting the ODrive to a PC using UART and want to use the python tools to control and setup the ODrive.
- * `ascii`: The ASCII protocol. Use this option if you control the ODrive with an Arduino. The ODrive Arduino library is not yet updated to the native protocol.
- * `none`: Disable UART.
-
-__CONFIG_DEBUG__: Defines wether debugging will be enabled when compiling the firmware; specifically the `-g -gdwarf-2` flags. Note that printf debugging will only function if your tup.config specifies the `USB_PROTOCOL` or `UART_PROTOCOL` as stdout and `DEBUG_PRINT` is defined. See the IDE specific documentation for more information.
+__CONFIG_DEBUG__: Defines wether debugging will be enabled when compiling the firmware; specifically the `-g -gdwarf-2` flags. Note that printf debugging will only function if your tup.config specifies the `USB_PROTOCOL` as stdout and `DEBUG_PRINT` is defined. See the IDE specific documentation for more information.
 
 You can also modify the compile-time defaults for all `.config` parameters. You will find them if you search for `AxisConfig`, `MotorConfig`, etc.
 

@@ -150,7 +150,9 @@ struct BoardConfig_t {
      * For more information refer to Section 30.3.4 and Table 142 (the column with f_PCLK = 42 MHz) in the STM datasheet:
      * https://www.st.com/content/ccc/resource/technical/document/reference_manual/3d/6d/5a/66/b4/99/40/d4/DM00031020.pdf/files/DM00031020.pdf/jcr:content/translations/en.DM00031020.pdf
      */
-    uint32_t uart_baudrate = 115200;
+    uint32_t uart_baudrate = 115200; // requires reboot
+    int8_t uart_stop_bits = 1; //must be 1 or 2. requires reboot
+	bool uart_use_ascii_protocol = false; // requires reboot
 };
 
 // Forward Declarations

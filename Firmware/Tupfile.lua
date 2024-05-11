@@ -91,26 +91,13 @@ else
     error("unknown USB protocol")
 end
 
--- UART I/O settings
-if tup.getconfig("UART_PROTOCOL") == "native" then
-    FLAGS += "-DUART_PROTOCOL_NATIVE"
-elseif tup.getconfig("UART_PROTOCOL") == "ascii" or tup.getconfig("UART_PROTOCOL") == "" then
-    FLAGS += "-DUART_PROTOCOL_ASCII"
-elseif tup.getconfig("UART_PROTOCOL") == "stdout" then
-    FLAGS += "-DUART_PROTOCOL_STDOUT"
-elseif tup.getconfig("UART_PROTOCOL") == "none" then
-    FLAGS += "-DUART_PROTOCOL_NONE"
-else
-    error("unknown UART protocol "..tup.getconfig("UART_PROTOCOL"))
-end
-
 -- GPIO settings
 if tup.getconfig("STEP_DIR") == "y" then
-    if tup.getconfig("UART_PROTOCOL") == "none" then
-        FLAGS += "-DUSE_GPIO_MODE_STEP_DIR"
-    else
-        error("Step/dir mode conflicts with UART. Set CONFIG_UART_PROTOCOL to none.")
-    end
+    --if tup.getconfig("UART_PROTOCOL") == "none" then
+    --    FLAGS += "-DUSE_GPIO_MODE_STEP_DIR"
+    --else
+    error("Step/dir mode conflicts with UART. Unavailable in this firmware.")
+    --end
 end
 
 -- Compiler settings

@@ -194,6 +194,8 @@ extern "C" int construct_objects(){
 
     HAL_UART_DeInit(&huart4);
     huart4.Init.BaudRate = odrv.config_.uart_baudrate;
+    huart4.Init.StopBits = odrv.config_.uart_stop_bits == 2 ? UART_STOPBITS_2 : UART_STOPBITS_1;
+	::uart_use_ascii_protocol = odrv.config_.uart_use_ascii_protocol;
     HAL_UART_Init(&huart4);
 
     // Init general user ADC on some GPIOs.

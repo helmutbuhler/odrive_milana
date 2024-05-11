@@ -13,6 +13,8 @@ extern "C" {
 extern osThreadId uart_thread;
 extern const uint32_t stack_size_uart_thread;
 
+extern bool uart_use_ascii_protocol;
+
 void start_uart_server(void);
 void uart_poll(void);
 

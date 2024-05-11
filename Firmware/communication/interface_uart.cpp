@@ -24,6 +24,8 @@ static uint32_t dma_last_rcv_idx;
 osThreadId uart_thread = 0;
 const uint32_t stack_size_uart_thread = 4096;  // Bytes
 
+bool uart_use_ascii_protocol = false;
+
 int debug1 = 0;
 int debug2 = 0;
 int debug3 = 0;
@@ -81,25 +83,23 @@ static void uart_server_thread(void * ctx) {
         // deadline_ms = timeout_to_deadline(PROTOCOL_SERVER_TIMEOUT_MS);
         // Process bytes in one or two chunks (two in case there was a wrap)
         if (new_rcv_idx < dma_last_rcv_idx) {
-#ifdef UART_PROTOCOL_NATIVE
-            uart4_stream_input.process_bytes(dma_rx_buffer + dma_last_rcv_idx,
-                    UART_RX_BUFFER_SIZE - dma_last_rcv_idx, nullptr); // TODO: use process_all
-#endif
-#ifdef UART_PROTOCOL_ASCII
-            ASCII_protocol_parse_stream(dma_rx_buffer + dma_last_rcv_idx,
-                    UART_RX_BUFFER_SIZE - dma_last_rcv_idx, uart4_stream_output);
-#endif
+			if (uart_use_ascii_protocol) {
+				ASCII_protocol_parse_stream(dma_rx_buffer + dma_last_rcv_idx,
+						UART_RX_BUFFER_SIZE - dma_last_rcv_idx, uart4_stream_output);
+            } else {
+				uart4_stream_input.process_bytes(dma_rx_buffer + dma_last_rcv_idx,
+						UART_RX_BUFFER_SIZE - dma_last_rcv_idx, nullptr); // TODO: use process_all
+            }
             dma_last_rcv_idx = 0;
         }
         if (new_rcv_idx > dma_last_rcv_idx) {
-#ifdef UART_PROTOCOL_NATIVE
-            uart4_stream_input.process_bytes(dma_rx_buffer + dma_last_rcv_idx,
-                    new_rcv_idx - dma_last_rcv_idx, nullptr); // TODO: use process_all
-#endif
-#ifdef UART_PROTOCOL_ASCII
-			ASCII_protocol_parse_stream(dma_rx_buffer + dma_last_rcv_idx,
-                    new_rcv_idx - dma_last_rcv_idx, uart4_stream_output);
-#endif
+			if (uart_use_ascii_protocol) {
+				ASCII_protocol_parse_stream(dma_rx_buffer + dma_last_rcv_idx,
+						new_rcv_idx - dma_last_rcv_idx, uart4_stream_output);
+            } else {
+				uart4_stream_input.process_bytes(dma_rx_buffer + dma_last_rcv_idx,
+						new_rcv_idx - dma_last_rcv_idx, nullptr); // TODO: use process_all
+            }
             dma_last_rcv_idx = new_rcv_idx;
         }
 
