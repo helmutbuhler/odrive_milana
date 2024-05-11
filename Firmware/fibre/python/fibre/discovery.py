@@ -20,17 +20,11 @@ import os
 
 channel_types = {}
 
-try:
-    import fibre.usbbulk_transport
-    channel_types['usb'] = fibre.usbbulk_transport.discover_channels
-except ImportError:
-    pass
+import fibre.usbbulk_transport
+channel_types['usb'] = fibre.usbbulk_transport.discover_channels
 
-try:
-    import fibre.serial_transport
-    channel_types['serial'] = fibre.serial_transport.discover_channels
-except ImportError:
-    pass
+import fibre.serial_transport
+channel_types['serial'] = fibre.serial_transport.discover_channels
 
 try:
     import fibre.tcp_transport

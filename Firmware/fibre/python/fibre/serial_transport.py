@@ -12,16 +12,21 @@ import serial.tools.list_ports
 import fibre
 from fibre.utils import TimeoutError
 
-# TODO: make this customizable
-#DEFAULT_BAUDRATE = 115200
-DEFAULT_BAUDRATE = 921600
+DEFAULT_BAUDRATE = 115200
+DEFAULT_STOP_BITS = 1
 
 class SerialStreamTransport(fibre.protocol.StreamSource, fibre.protocol.StreamSink):
-    def __init__(self, port, baud):
+    def __init__(self, port, baud, stop_bits):
         self._timeout = 1
-        print("stopbits")
+        sb = None
+        if stop_bits == 1:
+            sb = serial.STOPBITS_ONE
+            print("stopbits 1")
+        elif stop_bits == 2:
+            sb = serial.STOPBITS_TWO
+            print("stopbits 2")
         self._dev = serial.Serial(port, baud, timeout=self._timeout,
-                                  stopbits=serial.STOPBITS_TWO)
+                                  stopbits=sb)
         print("ok!")
 
     def process_bytes(self, bytes):
@@ -72,11 +77,30 @@ def discover_channels(path, serial_number, callback, cancellation_token, channel
     This function blocks until cancellation_token is set.
     Channels spawned by this function run until channel_termination_token is set.
     """
+    baud = DEFAULT_BAUDRATE
+    stop_bits = DEFAULT_STOP_BITS
     if path == None:
         # This regex should match all desired port names on macOS,
         # Linux and Windows but might match some incorrect port names.
         regex = r'^(/dev/tty\.usbmodem.*|/dev/ttyACM.*|COM[0-9]+)$'
     else:
+        path_parts = path.split("_")
+        if len(path_parts) == 1:
+            path = path_parts[0]
+        elif len(path_parts) == 2:
+            path = path_parts[0]
+            baud = int(path_parts[1])
+        elif len(path_parts) == 3:
+            baud = int(path_parts[1])
+            if path_parts[2] == "8N1":
+                stop_bits = 1
+            elif path_parts[2] == "8N2":
+                stop_bits = 2
+            else:
+                raise Exception("Unexpected serial path format: {} Last part must be 8N1 or 8N2".format(path))
+            path = path_parts[0]
+        else:
+            raise Exception("Unexpected serial path format: {}".format(path))
         regex = "^" + path + "$"
 
     known_devices = []
@@ -95,11 +119,11 @@ def discover_channels(path, serial_number, callback, cancellation_token, channel
         new_ports = filter(device_matcher, all_ports)
         for port_name in new_ports:
             try:
-                serial_device = SerialStreamTransport(port_name, DEFAULT_BAUDRATE)
+                serial_device = SerialStreamTransport(port_name, baud, stop_bits)
                 input_stream = fibre.protocol.PacketFromStreamConverter(serial_device)
                 output_stream = fibre.protocol.StreamBasedPacketSink(serial_device)
                 channel = fibre.protocol.Channel(
-                        "serial port {}@{}".format(port_name, DEFAULT_BAUDRATE),
+                        "serial port {}@{}".format(port_name, baud),
                         input_stream, output_stream, channel_termination_token, logger)
                 channel.serial_device = serial_device
             except serial.serialutil.SerialException:

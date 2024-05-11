@@ -87,6 +87,8 @@ parser.add_argument("-p", "--path", metavar="PATH", action="store",
                     "To select a specific serial port:\n"
                     "  --path serial:PATH\n"
                     "where PATH is the path of the serial port. For example \"/dev/ttyUSB0\".\n"
+                    "You can also specify the baudrate and other parameters for serial ports.\n"
+                    "For example \"/dev/ttyUSB0_115200_8N1\" specifies the baudrate 115200, 8 bits, no parity and 1 stop-bit. (That is also the default)\n"
                     "You can use `ls /dev/tty*` to find the correct port.\n\n"
                     "You can combine USB and serial specs by separating them with a comma (no space!)\n"
                     "Example:\n"
