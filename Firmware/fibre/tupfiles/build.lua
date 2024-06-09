@@ -1,7 +1,7 @@
 
 
 function GCCToolchain(prefix, builddir, compiler_flags, linker_flags)
-    print('GCCToolchain')
+
     -- add some default compiler flags
     compiler_flags += '-fstack-usage'
 
@@ -66,7 +66,6 @@ end
 
 
 function LLVMToolchain(arch, compiler_flags, linker_flags)
-    print('LLVMToolchain')
 
     -- add some default compiler flags
     --compiler_flags += '-march='..arch
@@ -138,7 +137,7 @@ end
 --  pkg.libs:       The libraries that are needed to link this
 --                  package
 function define_package(pkg)
-    print('defined package in '..tup.getcwd())
+    --print('defined package in '..tup.getcwd())
     pkg.sources = get_generalized_paths(pkg.sources)
     pkg.objects = get_generalized_paths(pkg.objects)
     pkg.headers = get_generalized_paths(pkg.headers)
@@ -154,7 +153,6 @@ end
 
 -- Builds object files from the source files in the specified package
 function build_objects(pkg, toolchain)
-    print('objects')
     all_headers = {}
     tup.append_table(all_headers, pkg.private_headers)
     tup.append_table(all_headers, pkg.headers)
@@ -188,7 +186,6 @@ function build_objects(pkg, toolchain)
 end
 
 function build_executable(name, pkg, toolchain)
-    print('build_executable')
     all_object_files = {}
     all_libs = {}
 

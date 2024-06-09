@@ -344,7 +344,7 @@ void Encoder::sample_now() {
             axis_->motor_.log_timing(TIMING_LOG_SAMPLE_NOW);
             // Do nothing
 
-            // BalanceBot:
+            // Milana robot:
             if (enable_extra_incremental_counter_) {
                 extra_incremental_counter_ = (int16_t)hw_config_.timer->Instance->CNT;
             }

@@ -121,7 +121,6 @@ all_packages = {}
 -- toolchains: Each element of this list is a collection of functions, such as compile_c, link, ...
 --              You can create a new toolchain object for each platform you want to build for.
 function build(args)
-    print('build')
     if args.toolchain == nil then args.toolchain = {} end
     if args.sources == nil then args.sources = {} end
     if args.includes == nil then args.includes = {} end
@@ -134,7 +133,7 @@ function build(args)
     
     -- add includes of other packages
     for _,pkg_name in pairs(args.packages) do
-        print('depend on package '..pkg_name)
+        --print('depend on package '..pkg_name)
         pkg = all_packages[pkg_name]
         if pkg == nil then
             error("unknown package "..pkg_name)
@@ -148,11 +147,10 @@ function build(args)
 
     -- run everything once for every toolchain
     for _,toolchain in pairs(args.toolchains) do
-        print('toolchain')
         -- compile
         outputs = {}
         for _,src in pairs(args.sources) do
-            print("compile "..src)
+            --print("compile "..src)
             if tup.ext(src) == 'c' then
                 toolchain.compile_c(src, args.c_flags, args.includes, outputs)
             elseif tup.ext(src) == 'cpp' then
@@ -164,7 +162,6 @@ function build(args)
             end
         end
 
-        print('link')
         -- link
         if outputs.object_files != nil and args.type != 'objects' then
             tup.append_table(args.linker_objects, outputs.object_files)
@@ -180,8 +177,8 @@ function build(args)
         end
     end
 
-    for k,v in pairs(all_packages) do
-        print('have package '..k)
-    end
+    --for k,v in pairs(all_packages) do
+    --    print('have package '..k)
+    --end
 end
 
