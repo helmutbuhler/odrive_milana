@@ -28,7 +28,7 @@ Once you have compiled (or downloaded) the .hex file, you must flash it to your 
 ```
 sudo python3 ../tools/odrivetool
 ```
-If you get python package errors, try installing them by executing this:
+If you are on Windows, omit the sudo. If you get python package errors, try installing them by executing this:
 ```
 pip3 install PyYAML Jinja2 jsonschema requests pyusb intelhex appdirs ipython pyserial
 ```
