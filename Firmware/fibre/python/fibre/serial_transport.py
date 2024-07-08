@@ -21,13 +21,10 @@ class SerialStreamTransport(fibre.protocol.StreamSource, fibre.protocol.StreamSi
         sb = None
         if stop_bits == 1:
             sb = serial.STOPBITS_ONE
-            print("stopbits 1")
         elif stop_bits == 2:
             sb = serial.STOPBITS_TWO
-            print("stopbits 2")
         self._dev = serial.Serial(port, baud, timeout=self._timeout,
                                   stopbits=sb)
-        print("ok!")
 
     def process_bytes(self, bytes):
         self._dev.write(bytes)
