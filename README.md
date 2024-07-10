@@ -21,7 +21,9 @@ In this diff (todo) of `odrive-interface.yaml`, you can see the new variables av
 If you don't want to build it yourself, some built binaries are available here: todo.
 
 ## Build
-To build, clone this repository and cd into it and then into the folder `Firmware`. Open `tup.config.default` and uncomment the line defining CONFIG_BOARD_VERSION. Make sure the version matches your board. Save that file as `tup.config` and execute `make`. If you are missing some dependencies, refer to the [official developer guide](https://docs.odriverobotics.com/v/0.5.6/developer-guide.html) (Note: You cannot do this on Windows)
+To build, clone this repository and cd into it and then into the folder `Firmware`. Open `tup.config.default` and uncomment the line defining CONFIG_BOARD_VERSION. Make sure the version matches your board. Save that file as `tup.config` and execute `make`. If you are missing some dependencies, refer to "Installing Prerequisites" in the [official developer guide](https://docs.odriverobotics.com/v/0.5.6/developer-guide.html)
+
+I verified this on a Ubuntu 18.04 on a Jetson Nano and in a VM. I also tried this on a newer version of Ubuntu, and while it built there, the resulting binary file bricked the ODrive. I was only able to recover the ODrive with the DFU switch. So I recommend Ubuntu 18.04 for building this. The resulting .hex file should be around 746500 bytes big (the faulty ones were around 776.500 bytes big).
 
 ## Flash firmware
 Once you have compiled (or downloaded) the .hex file, you must flash it to your ODrive. Connect ODrive via USB and make sure you can access it with ODrivetool: (assuming you are still in the Firmware folder)
