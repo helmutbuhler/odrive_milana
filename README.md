@@ -15,10 +15,10 @@ Some of the features new in this fork:
  - Some minor UART communication bugfixes in Firmware.
  - There is also some functionality specific to the Milana Robot project. But you can just ignore that if you don't need it. The robot specific stuff is all in memory, nothing is persisted in the config.
 
-In this diff (todo) of `odrive-interface.yaml`, you can see the new variables available via ODrivetool and also some comments explaining them.
+In this [diff](https://github.com/helmutbuhler/odrive_milana/compare/fw-v0.5.1...fw-v0.5.100?diff=split&w=#diff-a33c1b961195dd4f4049aa164d649b95bf0420dc26572775fc1c8b04bbb52625) of `odrive-interface.yaml`, you can see the new variables available via ODrivetool and also some comments explaining them.
 
 ## Binaries
-If you don't want to build it yourself, some built binaries are available here: todo.
+If you don't want to build it yourself, some built binaries are available [here](https://github.com/helmutbuhler/odrive_milana/releases).
 
 ## Build
 To build, clone this repository and cd into it and then into the folder `Firmware`. Open `tup.config.default` and uncomment the line defining CONFIG_BOARD_VERSION. Make sure the version matches your board. Save that file as `tup.config` and execute `make`. If you are missing some dependencies, refer to "Installing Prerequisites" in the [official developer guide](https://docs.odriverobotics.com/v/0.5.6/developer-guide.html)
