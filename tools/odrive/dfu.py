@@ -340,6 +340,7 @@ def update_device(device, firmware, logger, cancellation_token):
         logger.debug(" {:08X} to {:08X}".format(start, end - 1))
 
     # Back up configuration
+    do_backup_config = None
     if dfudev is None:
         do_backup_config = device.user_config_loaded if hasattr(device, 'user_config_loaded') else False
         if do_backup_config:
@@ -421,7 +422,10 @@ def update_device(device, firmware, logger, cancellation_token):
         odrive.configuration.restore_config(device, None, logger)
         os.remove(odrive.configuration.get_temp_config_filename(device))
 
-    logger.success("Device firmware update successful.")
+    if device:
+        logger.success("Device firmware update successful.")
+    else:
+        logger.success("Device firmware update successful, but it didn't reappear. It might need to be rebooted or DFU mode disabled.")
 
 def launch_dfu(args, logger, cancellation_token):
     """
