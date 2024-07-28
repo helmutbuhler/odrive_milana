@@ -1,7 +1,7 @@
 ![ODrive Logo](https://static1.squarespace.com/static/58aff26de4fcb53b5efd2f02/t/59bf2a7959cc6872bd68be7e/1505700483663/Odrive+logo+plus+text+black.png?format=1000w)
 
 # Unofficial fork of ODrive
-This is a fork that happened at version 0.5.1. I mainly developed this for my Milana Robot project (todo link). But even for other projects, this fork might be useful to some people because this fork has some features independent of that project.
+This is a fork that happened at version 0.5.1. I mainly developed this for my [Milana Robot](https://github.com/helmutbuhler/milana_robot) project. But even for other projects, this fork might be useful to some people because this fork has some features independent of that project.
 Since there are no version numbers left between 0.5.1 and 0.5.2, I gave this fork the version number 0.5.100 and will count up from that.
 
 Some of the features new in this fork:
